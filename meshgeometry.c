@@ -3,13 +3,14 @@
 //char version[]="meshgeometry, version 3, roberto toro, 1 May 2010"; // added -laplace and -taubinLM
 //char version[]="meshgeometry, version 4, roberto toro, 21 May 2010"; // commands are processed as a chain
 //char version[]="meshgeometry, version 5, roberto toro, 28 May 2012"; // added several commands: foldLength, volume, absgi, texture threshold, countClusters, and includes meshconvert v8
-char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // added randomverts, help, centre, normalise, normal, verbose, off mesh format (load and save)
+char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // added randomverts, help, centre, normalise, normal, verbose, off mesh format (load and save), added to github
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <unistd.h>
 
 #define pi 3.14159265358979323846264338327950288419716939927510
 #define min(a,b) (((a)<(b))?(a):(b))
@@ -38,11 +39,18 @@ typedef struct
 	int	a,b,c;
 }int3D;
 
+#define SIZESTACK	64
+typedef struct {
+	int		n;
+	int		t[SIZESTACK];
+}NTriRec;
+
 int		np;
 int		nt;
 float3D	*p;
 int3D	*t;
 float	*data;
+NTriRec	*NT;
 float	R;
 int		verbose=0;
 
@@ -1431,13 +1439,65 @@ int flip(void)
 		t[i]=(int3D){t[i].a,t[i].c,t[i].b};
 	return 0;
 }
+void neighbours(void)
+{
+	// find incident triangles for every vertex
+	int	i;
+	
+	if(NT)
+		free(NT);
+	NT=(NTriRec*)calloc(np,sizeof(NTriRec));		
+	for(i=0;i<nt;i++)
+	{
+		NT[t[i].a].t[NT[t[i].a].n++] = i;
+		NT[t[i].b].t[NT[t[i].b].n++] = i;
+		NT[t[i].c].t[NT[t[i].c].n++] = i;
+	}
+}
+int fixflip(void)
+{
+	int		i,j,pos;
+	float3D	*nn=(float3D*)calloc(nt,sizeof(float3D));
+	float3D	tmp;
+	
+	// compute all triangle normals
+	for(i=0;i<nt;i++)
+		nn[i]=normal3D(i);
+	
+	// find neighbouring triangles for every vertex
+	neighbours();
+	
+	// find vertices with 1 inverted triangle
+	for(i=0;i<np;i++)
+	{
+		tmp=nn[NT[i].t[0]];	// take the 1st triangle as reference
+		pos=0;
+		for(j=0;j<NT[i].n;j++)
+			if(dot3D(nn[NT[i].t[j]],tmp)>0)
+				pos++;
+		if(pos==NT[i].n)	// no problem: all triangles have the same orientation
+			continue;
+		
+		// flip detected: move the vertex to the barycentre of its neighbours to fix it
+		printf("Vertex %i is in a flipped triangle. Fixing it.\n",i);
+		tmp=(float3D){0,0,0};
+		for(j=0;j<NT[i].n;j++)
+		{
+			if(t[NT[i].t[j]].a!=i)
+				tmp=add3D(tmp,p[t[NT[i].t[j]].a]);
+			if(t[NT[i].t[j]].b!=i)
+				tmp=add3D(tmp,p[t[NT[i].t[j]].b]);
+			if(t[NT[i].t[j]].c!=i)
+				tmp=add3D(tmp,p[t[NT[i].t[j]].c]);
+		}
+		tmp=sca3D(tmp,1/(float)(NT[i].n*2));
+		p[i]=tmp;
+	}
+	
+	return 0;
+}
 double	sum;
 int		*tmark,icmax,ncverts;
-#define SIZESTACK	64
-typedef struct {
-	int		n;
-	int		t[SIZESTACK];
-}NTriRec, *NtriPtr;
 void cluster(NTriRec *NT, int ip, float *thrsrc, float thr)
 {
 	int		i,j,it;
@@ -1465,15 +1525,8 @@ void countClusters(float *thrsrc, float thr)
 	int		n;
 	int		i;
 	
-	NTriRec	*NT;
-	NT=(NTriRec*)calloc(np,sizeof(NTriRec));		
-	for(i=0;i<nt;i++)
-	{
-		NT[t[i].a].t[NT[t[i].a].n++] = i;
-		NT[t[i].b].t[NT[t[i].b].n++] = i;
-		NT[t[i].c].t[NT[t[i].c].n++] = i;
-	}
-
+	neighbours();
+	
 	n=1;
 	tmark=(int*)calloc(np,sizeof(int));
 	printf("number\tnVertices\timax\tmax\tXmax\tYmax\tZmax\n");
@@ -1520,7 +1573,7 @@ void foldLength(void)
 		if(j==2)
 			length+=norm3D(sub3D(p0[0],p0[1]));
 	}
-	printf("foldLength: %g\n",length/2.0);
+	printf("foldLength: %f\n",length/2.0);
 }
 void centre(void)
 {
@@ -1563,7 +1616,7 @@ float area(void)
 	
 	for(i=0;i<nt;i++)
 		area+=triangle_area(p[t[i].a],p[t[i].b],p[t[i].c]);
-	printf("area: %g\n",area);
+	printf("area: %f\n",area);
 	
 	return area;
 }
@@ -1575,7 +1628,7 @@ float volume(void) // Code By S Melax from http://www.melax.com/volint/
 	for(i=0;i<nt;i++)
 		vol += determinant(p[t[i].a],p[t[i].b],p[t[i].c]); //divide by 6 later for efficiency
 	vol/=6.0;// since the determinant give 6 times tetra volume
-	printf("volume: %g\n",vol);
+	printf("volume: %f\n",vol);
 	return vol;
 }
 void absgi(void)
@@ -1651,6 +1704,8 @@ void randverts(int nrv)
 	float		s0,s1;
 	float3D		v;
 				
+	srand(time(NULL)+getpid());
+	
 	printf("3 meshgeometry randverts\n");
 	printf("%i\n",nrv);
 	// generate random vertices
@@ -1678,29 +1733,30 @@ void printHelp(void)
 {
 	 printf("\
  Commands\n\
-	imesh filename                                  Input mesh\n\
-	omesh filename                                  Output mesh\n\
-	odata filename                                  Output data\n\
- 	curv                                            Compute curvature\n\
- 	icurv number_of_iterations                      Integrated curvature\n\
-	laplaceSmooth lambda number_of_iterations       Laplace smoothing\n\
-	taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
-	scale scale                                     Scale multiplying each point by \"scale\"\n\
-	euler                                           Print Euler characteristic\n\
-	flip                                            Flip normals\n\
-	foldLength                                      Compute total fold length\n\
-	centre                                          Move the mesh's barycentre to the origin\n\
-	normalise                                       Place all vertices at distance 1 from the origin\n\
-	volume                                          Compute mesh volume\n\
-	absgi                                           Compute absolute gyrification index\n\
-	threshold                                       Threshold texture data\n\
-	countClusters                                   Count clusters in texture data\n\
-	normal                                          Mesh normal\n\
-	randverts number_of_vertices                    Generate homogeneously\n\
+	-imesh filename                                  Input mesh\n\
+	-omesh filename                                  Output mesh\n\
+	-odata filename                                  Output data\n\
+ 	-curv                                            Compute curvature\n\
+ 	-icurv number_of_iterations                      Integrated curvature\n\
+	-laplaceSmooth lambda number_of_iterations       Laplace smoothing\n\
+	-taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
+	-scale scale                                     Scale multiplying each point by \"scale\"\n\
+	-euler                                           Print Euler characteristic\n\
+	-flip                                            Flip normals\n\
+	-fixFlip                                         Detect flipped triangles and fix them\n\
+	-foldLength                                      Compute total fold length\n\
+	-centre                                          Move the mesh's barycentre to the origin\n\
+	-normalise                                       Place all vertices at distance 1 from the origin\n\
+	-volume                                          Compute mesh volume\n\
+	-absgi                                           Compute absolute gyrification index\n\
+	-threshold                                       Threshold texture data\n\
+	-countClusters                                   Count clusters in texture data\n\
+	-normal                                          Mesh normal\n\
+	-randverts number_of_vertices                    Generate homogeneously\n\
 	                                                 distributed random vertices\n\
 	                                                 over the mesh\n\
-    v                                               Verbose mode\n\
-	h                                               Help\n\
+    -v                                               Verbose mode\n\
+	-h                                               Help\n\
     \n\
 	Meshgeometry can read and write several formats, guessed from the file\n\
     extension. These are:\n\
@@ -1714,7 +1770,6 @@ void printHelp(void)
 int main(int argc, char *argv[])
 {
 	checkEndianness();
-	srand (time(NULL));
 	
 	int	i;
 	
@@ -1786,6 +1841,11 @@ int main(int argc, char *argv[])
 		if(strcmp(argv[i],"-flip")==0)
 		{
 			flip();
+		}
+		else
+		if(strcmp(argv[i],"-fixFlip")==0)
+		{
+			fixflip();
 		}
 		else
 		if(strcmp(argv[i],"-scale")==0)
