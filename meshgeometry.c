@@ -1372,8 +1372,8 @@ int Off_save_mesh(char *path, Mesh *m)
     int     *nt=&(m->nt);
     float3D *p=m->p;
     int3D   *t=m->t;
-    int     i;
     FILE    *f;
+    int		i;
 
     f=fopen(path,"w");
     if(f==NULL)
@@ -1389,6 +1389,24 @@ int Off_save_mesh(char *path, Mesh *m)
     for(i=0;i<*nt;i++)
         fprintf(f,"3 %i %i %i\n",t[i].a,t[i].b,t[i].c);
     fclose(f);
+    return 0;
+}
+int SRatioFloatData_save_data(char *path, Mesh *m)
+{
+    int     *np=&(m->np);
+    float   *data=m->data;
+    FILE    *f;
+
+    f=fopen(path,"w");
+    
+    if(f==NULL)
+        return 1;
+    
+    fprintf(f,"<v>1</v>\n");
+    fprintf(f,"<n>%i</n>\n",*np);
+    fwrite(data,*np,sizeof(float),f);
+    fclose(f);
+    
     return 0;
 }
 #pragma mark -
@@ -1498,6 +1516,9 @@ int saveMesh(char *path, Mesh *m, int oformat)
             break;
         case kOffMesh:
             err=Off_save_mesh(path,m);
+            break;
+        case kSRatioFloatData:
+            err=SRatioFloatData_save_data(path,m);
             break;
         default:
             printf("ERROR: Output data format not recognised\n");
