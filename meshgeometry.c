@@ -2281,7 +2281,7 @@ void randverts(int nrv, Mesh *m)
 int resample(char *path_m1, char *path_rm, Mesh *m)
 {
     /*
-    ...i would like to resample the actual mesh to match a reference mesh,
+    ...I would like to resample the actual mesh to match a reference mesh,
     for example, to average folds, or to average thickness data over many
     meshes.
     1. to average folds, i would need to find for each vertex of the reference
@@ -2324,15 +2324,15 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
         return 1;
     }
     
-    // actual mesh
+    // Actual mesh
     p=m->p;
     nt=m->nt;
     t=m->t;
 
-    // smoothed version of the actual mesh
+    // Smoothed version of the actual mesh
     p_m1=m1.p;
 
-    // reference mesh
+    // Reference mesh
     np_rm=rm.np;
     p_rm=rm.p;
     
@@ -2357,7 +2357,7 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
         }
     }
     
-    // free actual mesh (m)
+    // Free actual mesh (m)
     free(m->p);
     free(m->t);
     if(m->data)
@@ -2365,11 +2365,11 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     if(m->NT)
         free(m->NT);
     
-    // free smooth version of the actual mesh (m1)
+    // Free smooth version of the actual mesh (m1)
     free(m1.p);
     free(m1.t);
     
-    // reconfigure mesh with resampled data
+    // Reconfigure mesh with resampled data
     m->p=tmp;
     m->t=rm.t;
     m->np=rm.np;
