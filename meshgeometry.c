@@ -1392,13 +1392,16 @@ int Off_save_mesh(char *path, Mesh *m)
     return 0;
 }
 #pragma mark -
-int loadMesh(char *path, Mesh *m)
+int loadMesh(char *path, Mesh *m,int iformat)
 {
     if(verbose) printf("* imesh\n");
 
     int        err,format;
     
-    format=getformatindex(path);
+    if(iformat==0)
+	    format=getformatindex(path);
+	else
+		format=iformat;
     
     switch(format)
     {
@@ -1447,13 +1450,16 @@ int loadMesh(char *path, Mesh *m)
     
     return 0;
 }
-int saveMesh(char *path, Mesh *m)
+int saveMesh(char *path, Mesh *m, int oformat)
 {
     if(verbose) printf("* omesh\n");
 
     int    err=0,format;
     
-    format=getformatindex(path);
+    if(oformat==0)
+	    format=getformatindex(path);
+	else
+		format=oformat;
 
     switch(format)
     {
@@ -2305,8 +2311,8 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     float3D n;
     float   flipTest;
     
-    loadMesh(path_m1,&m1);
-    loadMesh(path_rm,&rm);
+    loadMesh(path_m1,&m1,0);
+    loadMesh(path_rm,&rm,0);
     
     // Check whether the meshes are properly oriented
     n=normal3D(0,&m1);
@@ -2386,13 +2392,13 @@ int average(int N, char *paths[], Mesh *m)
     float3D *p;
     Mesh    m1;
     
-    loadMesh(paths[0],m);
+    loadMesh(paths[0],m,0);
     np=m->np;
     p=m->p;
     
     for(j=1;j<N;j++)
     {
-        loadMesh(paths[j],&m1);
+        loadMesh(paths[j],&m1,0);
         for(i=0;i<np;i++)
             p[i]=add3D(p[i],(m->p)[i]);
         free(m->p);
@@ -2407,6 +2413,8 @@ void printHelp(void)
 {
      printf("\
  Commands\n\
+    -iformat format name                             Force input format (needs to precede imesh)\n\
+    -oformat format name                             Force output format (needs to precede omesh)\n\
     -imesh filename                                  Input mesh\n\
     -omesh filename                                  Output mesh\n\
     -odata filename                                  Output data\n\
@@ -2457,6 +2465,8 @@ int main(int argc, char *argv[])
     checkEndianness();
     
     int    i;
+    int		iformat=0;
+    int		oformat=0;
     
     mesh.p=NULL;
     mesh.t=NULL;
@@ -2466,14 +2476,28 @@ int main(int argc, char *argv[])
     i=1;
     while(i<argc)
     {
+        if(strcmp(argv[i],"-iformat")==0)
+        {
+            char	str[256];
+            sprintf(str," .%s",argv[++i]);
+            iformat=getformatindex(str);
+        }
+        else
+        if(strcmp(argv[i],"-oformat")==0)
+        {
+            char	str[256];
+            sprintf(str," .%s",argv[++i]);
+            oformat=getformatindex(str);
+        }
+        else
         if(strcmp(argv[i],"-imesh")==0)
         {
-            loadMesh(argv[++i],&mesh);
+            loadMesh(argv[++i],&mesh,iformat);
         }
         else
         if(strcmp(argv[i],"-omesh")==0)
         {
-            saveMesh(argv[++i],&mesh);
+            saveMesh(argv[++i],&mesh,oformat);
         }
         else
         if(strcmp(argv[i],"-odata")==0)
