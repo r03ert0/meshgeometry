@@ -20,7 +20,7 @@ char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // add
 #define kFreeSurferMesh     1
 #define kBrainVisaMesh      2
 #define kFreeSurferData     3
-#define kSRatioFloatData    4
+#define kFloatData   		4
 #define kText               5
 #define kTextData           6
 #define kVRMLMesh           7
@@ -30,6 +30,7 @@ char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // add
 #define kSmeshMesh          11
 #define kBinMesh            12
 #define kOffMesh            13
+#define	kMGHData			20
 
 typedef struct
 {
@@ -282,8 +283,8 @@ void neighbours(Mesh *m)
 #pragma mark [ Format conversion ]
 int getformatindex(char *path)
 {
-    char    *formats[]={"orig","pial","white","mesh","sratio","sratiofloat","curv","txt","inflated","sphere","sulc","reg","txt1","wrl","obj","ply","stl","smesh","off","bin"};
-    int     i,n=20; // number of recognised formats
+    char    *formats[]={"orig","pial","white","mesh","sratio","float","curv","txt","inflated","sphere","sulc","reg","txt1","wrl","obj","ply","stl","smesh","off","bin","mgh"};
+    int     i,n=21; // number of recognised formats
     int     found,index;
     char    *extension;
     
@@ -328,9 +329,9 @@ int getformatindex(char *path)
     else
     if(i==5)
     {
-        index=kSRatioFloatData;
+        index=kFloatData;
         if(verbose)
-            printf("Format: SRatioFloat Data\n");
+            printf("Format: Float Data\n");
     }
     else
     if(i==12)
@@ -395,6 +396,13 @@ int getformatindex(char *path)
         if(verbose)
             printf("Format: Bin mesh\n");
     }
+    else
+    if(i==20)
+    {
+    	index=kMGHData;
+    	if(verbose)
+    		printf("Format: MGH data\n");
+    }
         
     return index;
 }
@@ -454,6 +462,9 @@ int FreeSurfer_load_data(char *path, Mesh *m)
     int     id,a,b,c;
     char    byte4[4];
 
+	if(verbose)
+		printf("* FreeSurfer_load_data\n");
+
     f=fopen(path,"r");
     if(f==NULL)
         return 1;
@@ -495,6 +506,51 @@ int FreeSurfer_load_data(char *path, Mesh *m)
     fclose(f);
     
     return 0;
+}
+int FreeSurfer_load_mghdata(char *path, Mesh *m)
+{
+	// path:	path to source thickness file in mgh format (non-compressed version of mgz)
+    int     *np=&(m->np);
+    float   **data=&(m->data);
+	FILE	*f;
+	int		v,ndim1,ndim2,ndim3,nframes,type,dof;
+	int		i;
+
+    f=fopen(path,"r");
+    if(f==NULL)
+        return 1;
+	
+	f=fopen(path,"r");
+	fread(&v,1,sizeof(int),f);			swapint(&v);
+	fread(&ndim1,1,sizeof(int),f);		swapint(&ndim1);
+	fread(&ndim2,1,sizeof(int),f);		swapint(&ndim2);
+	fread(&ndim3,1,sizeof(int),f);		swapint(&ndim3);
+	fread(&nframes,1,sizeof(int),f);	swapint(&nframes);
+	fread(&type,1,sizeof(int),f);		swapint(&type);
+	fread(&dof,1,sizeof(int),f);		swapint(&dof);
+	
+	if(verbose)
+	{
+		printf("version:%i\n",v);
+		printf("ndim1:%i\n",ndim1);
+		printf("ndim2:%i\n",ndim2);
+		printf("ndim3:%i\n",ndim3);
+		printf("nframes:%i\n",nframes);
+		printf("type:%i\n",type);
+		printf("dof:%i\n\n",dof);
+	}
+	
+	*np=ndim1*ndim2*ndim3;
+	*data=(float*)calloc(*np,sizeof(float));
+	fseek(f,64*4,SEEK_CUR);
+	for(i=0;i<*np;i++)
+	{
+		fread(&((*data)[i]),1,sizeof(float),f);
+		swapfloat(&((*data)[i]));
+	}
+	fclose(f);
+
+	return 0;
 }
 
 int FreeSurfer_save_mesh(char *path, Mesh *m)
@@ -1391,8 +1447,11 @@ int Off_save_mesh(char *path, Mesh *m)
     fclose(f);
     return 0;
 }
-int SRatioFloatData_save_data(char *path, Mesh *m)
+int FloatData_save_data(char *path, Mesh *m)
 {
+    if(verbose)
+    	printf("* FloatData_save_data\n");
+
     int     *np=&(m->np);
     float   *data=m->data;
     FILE    *f;
@@ -1402,8 +1461,6 @@ int SRatioFloatData_save_data(char *path, Mesh *m)
     if(f==NULL)
         return 1;
     
-    fprintf(f,"<v>1</v>\n");
-    fprintf(f,"<n>%i</n>\n",*np);
     fwrite(data,*np,sizeof(float),f);
     fclose(f);
     
@@ -1428,6 +1485,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
             break;
         case kFreeSurferData:
             err=FreeSurfer_load_data(path,m);
+            break;
+        case kMGHData:
+            err=FreeSurfer_load_mghdata(path,m);
             break;
         case kBrainVisaMesh:
             err=BrainVisa_load_mesh(path,m);
@@ -1517,8 +1577,8 @@ int saveMesh(char *path, Mesh *m, int oformat)
         case kOffMesh:
             err=Off_save_mesh(path,m);
             break;
-        case kSRatioFloatData:
-            err=SRatioFloatData_save_data(path,m);
+        case kFloatData:
+            err=FloatData_save_data(path,m);
             break;
         default:
             printf("ERROR: Output data format not recognised\n");
@@ -2436,8 +2496,8 @@ void printHelp(void)
  Commands\n\
     -iformat format name                             Force input format (needs to precede imesh)\n\
     -oformat format name                             Force output format (needs to precede omesh)\n\
-    -imesh filename                                  Input mesh\n\
-    -omesh filename                                  Output mesh\n\
+    -i filename			                             Input file (also accepts -imesh)\n\
+    -o filename		                                 Output file (also accepts -omesh)\n\
     -odata filename                                  Output data\n\
     -curv                                            Compute curvature\n\
     -icurv number_of_iterations                      Integrated curvature\n\
@@ -2476,7 +2536,8 @@ void printHelp(void)
     .curv, .sulc, .sratio                            Freesurfer data\n\
     .mesh                                            BrainVisa meshe\n\
     .txt                                             RT's mesh plain text format\n\
-    .sratiofloat, .txt1                              RT's data format\n\
+    .float											 Raw float data\n\
+    .txt1 				                             RT's data format\n\
     .bin                                             n-e-r-v-o-u-s system web binary mesh\n\
     .wrl, .obj, .ply, .stl, .smesh, .off             Miscellaneous mesh formats\n\
 ");
@@ -2486,8 +2547,8 @@ int main(int argc, char *argv[])
     checkEndianness();
     
     int    i;
-    int		iformat=0;
-    int		oformat=0;
+    int	   iformat=0;
+    int    oformat=0;
     
     mesh.p=NULL;
     mesh.t=NULL;
@@ -2501,6 +2562,7 @@ int main(int argc, char *argv[])
         {
             char	str[256];
             sprintf(str," .%s",argv[++i]);
+            printf("iformat: %s\n",str);
             iformat=getformatindex(str);
         }
         else
@@ -2511,13 +2573,25 @@ int main(int argc, char *argv[])
             oformat=getformatindex(str);
         }
         else
+        if(strcmp(argv[i],"-i")==0)
+        {
+            loadMesh(argv[++i],&mesh,iformat);
+        }
+        else
+        if(strcmp(argv[i],"-o")==0)
+        {
+            saveMesh(argv[++i],&mesh,oformat);
+        }
+        else
         if(strcmp(argv[i],"-imesh")==0)
         {
+            printf("WARNING: -imesh still works, but better change to -i\n");
             loadMesh(argv[++i],&mesh,iformat);
         }
         else
         if(strcmp(argv[i],"-omesh")==0)
         {
+            printf("WARNING: -omesh still works, but better change to -o\n");
             saveMesh(argv[++i],&mesh,oformat);
         }
         else
