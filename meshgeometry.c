@@ -18,19 +18,21 @@ char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // add
 
 #define kMAXNETRIS          100
 #define kFreeSurferMesh     1
-#define kBrainVisaMesh      2
-#define kFreeSurferData     3
-#define kFloatData   		4
-#define kText               5
-#define kTextData           6
-#define kVRMLMesh           7
-#define kObjMesh            8
-#define kPlyMesh            9
-#define kSTLMesh            10
-#define kSmeshMesh          11
-#define kBinMesh            12
-#define kOffMesh            13
-#define	kMGHData			20
+#define kFreeSurferData     2
+#define kFreeSurferAnnot    3    
+#define kBrainVisaMesh      4
+#define kFloatData          5
+#define kRawFloatData       6
+#define kText               7
+#define kTextData           8
+#define kVRMLMesh           9
+#define kObjMesh            10
+#define kPlyMesh            11
+#define kSTLMesh            12
+#define kSmeshMesh          13
+#define kBinMesh            14
+#define kOffMesh            15
+#define kMGHData            16
 
 typedef struct
 {
@@ -52,13 +54,19 @@ typedef struct
 }NTriRec;
 typedef struct
 {
-    int     np;
-    int     nt;
-    float3D *p;
-    int3D   *t;
-    float   *data;
-    NTriRec *NT;
+    int     np;     // number of vertices
+    int     nt;     // number of triangles
+    int     ddim;   // data dimensions (default: 1)
+    float3D *p;     // vertices
+    int3D   *t;     // triangles
+    float   *data;  // data
+    NTriRec *NT;    // neighbouring triangles
 }Mesh;
+
+float area(Mesh *m);
+float volume(Mesh *m);
+int smooth(Mesh *m);
+int taubin(float lambda, float mu, int N, Mesh *m);
 
 Mesh    mesh;
 float   R;
@@ -238,18 +246,18 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
 
     // get and test parametric coords
     *c0 = (uv * wv - vv * wu) / D;
-	if(fabs(*c0)<EPSILON)
-	    *c0=0;
-	if(fabs(1-*c0)<EPSILON)
-	    *c0=1;
+    if(fabs(*c0)<EPSILON)
+        *c0=0;
+    if(fabs(1-*c0)<EPSILON)
+        *c0=1;
     if (*c0 < 0.0 || *c0 > 1.0)        // I is outside T
         return 0;
 
     *c1 = (uv * wu - uu * wv) / D;
-	if(fabs(*c1)<EPSILON)
-	    *c1=0;
-	if(fabs(1-*c1)<EPSILON)
-	    *c1=1;
+    if(fabs(*c1)<EPSILON)
+        *c1=0;
+    if(fabs(1-*c1)<EPSILON)
+        *c1=1;
     if (*c1 < 0.0 || (*c0 + *c1) > 1.0)  // I is outside T
         return 0;
 
@@ -283,8 +291,8 @@ void neighbours(Mesh *m)
 #pragma mark [ Format conversion ]
 int getformatindex(char *path)
 {
-    char    *formats[]={"orig","pial","white","mesh","sratio","float","curv","txt","inflated","sphere","sulc","reg","txt1","wrl","obj","ply","stl","smesh","off","bin","mgh"};
-    int     i,n=21; // number of recognised formats
+    char    *formats[]={"orig","pial","white","mesh","sratio","float","curv","txt","inflated","sphere","sulc","reg","txt1","wrl","obj","ply","stl","smesh","off","bin","mgh","annot","raw"};
+    int     i,n=23; // number of recognised formats
     int     found,index;
     char    *extension;
     
@@ -313,6 +321,13 @@ int getformatindex(char *path)
             printf("Format: FreeSurfer mesh\n");
     }
     else
+    if(i==21)
+    {
+        index=kFreeSurferAnnot;
+        if(verbose)
+            printf("Format: FreeSurfer annot\n");
+    }
+    else
     if(i==3)
     {
         index=kBrainVisaMesh;
@@ -332,6 +347,13 @@ int getformatindex(char *path)
         index=kFloatData;
         if(verbose)
             printf("Format: Float Data\n");
+    }
+    else
+    if(i==22)
+    {
+        index=kRawFloatData;
+        if(verbose)
+            printf("Format: Raw Float Data\n");
     }
     else
     if(i==12)
@@ -399,9 +421,9 @@ int getformatindex(char *path)
     else
     if(i==20)
     {
-    	index=kMGHData;
-    	if(verbose)
-    		printf("Format: MGH data\n");
+        index=kMGHData;
+        if(verbose)
+            printf("Format: MGH data\n");
     }
         
     return index;
@@ -462,8 +484,8 @@ int FreeSurfer_load_data(char *path, Mesh *m)
     int     id,a,b,c;
     char    byte4[4];
 
-	if(verbose)
-		printf("* FreeSurfer_load_data\n");
+    if(verbose)
+        printf("* FreeSurfer_load_data\n");
 
     f=fopen(path,"r");
     if(f==NULL)
@@ -507,50 +529,99 @@ int FreeSurfer_load_data(char *path, Mesh *m)
     
     return 0;
 }
+int FreeSurfer_load_annot(char *path, Mesh *m)
+{
+    if(verbose)
+        printf("* FreeSurfer_load_annot\n");
+
+	FILE	*f;
+	int		i,n,l;
+	char	*tmp;
+    float   **data=&(m->data);
+
+    f=fopen(path,"r");
+	if(f==NULL)
+		return 0;
+	
+	fread(&n,1,sizeof(int),f);
+    if(endianness==kINTEL)
+        swapint(&n);
+    if(m->np==0)
+        m->np=n;
+    if(n!=m->np)
+    {
+        printf("ERROR: Annotation file corrupted. points:%i annotations:%i [FreeSurfer_load_annot]\n",m->np,n);
+        return 1;
+    }
+    
+    m->ddim=3;
+   	tmp=calloc(m->np,2*sizeof(int));
+   	*data=calloc(m->np,3*sizeof(float));
+	if(tmp==NULL)
+	{
+	    printf("ERROR: Cannot allocate memory [FreeSurfer_load_annot]\n");
+	    return 1;
+	}
+
+    fread(tmp,m->np,2*sizeof(int),f);
+	for(i=0;i<min(m->np,n);i++)
+	{
+		l=((int*)tmp)[2*i+1];
+		if(endianness==kINTEL)
+		    swapint(&l);
+		(*data)[3*i+0]=(l&0xff);
+		(*data)[3*i+1]=((l>>8)&0xff);
+		(*data)[3*i+2]=((l>>16)&0xff);
+	}
+	free(tmp);
+	fclose(f);
+
+	return 0;
+}
 int FreeSurfer_load_mghdata(char *path, Mesh *m)
 {
-	// path:	path to source thickness file in mgh format (non-compressed version of mgz)
+    // path: path to source thickness file in mgh format (non-compressed version of mgz)
     int     *np=&(m->np);
     float   **data=&(m->data);
-	FILE	*f;
-	int		v,ndim1,ndim2,ndim3,nframes,type,dof;
-	int		i;
+    FILE    *f;
+    int     v,ndim1,ndim2,ndim3,nframes,type,dof;
+    int     i;
 
     f=fopen(path,"r");
     if(f==NULL)
         return 1;
-	
-	f=fopen(path,"r");
-	fread(&v,1,sizeof(int),f);			swapint(&v);
-	fread(&ndim1,1,sizeof(int),f);		swapint(&ndim1);
-	fread(&ndim2,1,sizeof(int),f);		swapint(&ndim2);
-	fread(&ndim3,1,sizeof(int),f);		swapint(&ndim3);
-	fread(&nframes,1,sizeof(int),f);	swapint(&nframes);
-	fread(&type,1,sizeof(int),f);		swapint(&type);
-	fread(&dof,1,sizeof(int),f);		swapint(&dof);
-	
-	if(verbose)
-	{
-		printf("version:%i\n",v);
-		printf("ndim1:%i\n",ndim1);
-		printf("ndim2:%i\n",ndim2);
-		printf("ndim3:%i\n",ndim3);
-		printf("nframes:%i\n",nframes);
-		printf("type:%i\n",type);
-		printf("dof:%i\n\n",dof);
-	}
-	
-	*np=ndim1*ndim2*ndim3;
-	*data=(float*)calloc(*np,sizeof(float));
-	fseek(f,64*4,SEEK_CUR);
-	for(i=0;i<*np;i++)
-	{
-		fread(&((*data)[i]),1,sizeof(float),f);
-		swapfloat(&((*data)[i]));
-	}
-	fclose(f);
-
-	return 0;
+    
+    f=fopen(path,"r");
+    fread(&v,1,sizeof(int),f);          swapint(&v);
+    fread(&ndim1,1,sizeof(int),f);		swapint(&ndim1);
+    fread(&ndim2,1,sizeof(int),f);		swapint(&ndim2);
+    fread(&ndim3,1,sizeof(int),f);		swapint(&ndim3);
+    fread(&nframes,1,sizeof(int),f);	swapint(&nframes);
+    fread(&type,1,sizeof(int),f);		swapint(&type);
+    fread(&dof,1,sizeof(int),f);		swapint(&dof);
+    
+    if(verbose)
+    {
+        printf("version:%i\n",v);
+        printf("ndim1:%i\n",ndim1);
+        printf("ndim2:%i\n",ndim2);
+        printf("ndim3:%i\n",ndim3);
+        printf("nframes:%i\n",nframes);
+        printf("type:%i\n",type);
+        printf("dof:%i\n\n",dof);
+    }
+    
+    *np=ndim1*ndim2*ndim3;
+    *data=(float*)calloc(*np,sizeof(float));
+    fseek(f,64*4,SEEK_CUR);
+    for(i=0;i<*np;i++)
+    {
+        fread(&((*data)[i]),1,sizeof(float),f);
+        swapfloat(&((*data)[i]));
+    }
+    fclose(f);
+    
+    return 0;
 }
 
 int FreeSurfer_save_mesh(char *path, Mesh *m)
@@ -878,20 +949,33 @@ int Text_save_mesh(char *path, Mesh *m)
 }
 int Text_save_data(char *path, Mesh *m)
 {
+    if(verbose)
+        printf("* Text_save_data\n");
+
     int     *np=&(m->np);
     float   *data=m->data;
     FILE    *f;
-    int     i;
+    int     i,j;
     
     f=fopen(path,"w");
-    if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
+    if(f==NULL)
+    {
+        printf("ERROR: Cannot open file\n");
+        return 1;
+    }
     
     // WRITE HEADER
-    fprintf(f,"%i 1\n",*np);
+    fprintf(f,"%i %i 3\n",*np,m->ddim);
 
     // WRITE DATA
     for(i=0;i<*np;i++)
-        fprintf(f,"%f\n",data[i]);    
+    {
+        for(j=0;j<m->ddim;j++)
+            if(j<m->ddim-1)
+                fprintf(f,"%f ",data[m->ddim*i+j]);
+            else
+                fprintf(f,"%f\n",data[m->ddim*i+j]);
+    }
 
     fclose(f);
     
@@ -1028,6 +1112,7 @@ int VRML_save_mesh(char *path, Mesh *m)
 }
 int Obj_load(char *path, Mesh *m)
 {
+/* What is this obj format??
     int     *np=&(m->np);
     int     *nt=&(m->nt);
     float3D **p=&(m->p);
@@ -1070,9 +1155,11 @@ int Obj_load(char *path, Mesh *m)
         printf("Read %i triangles\n",*nt);
 
     fclose(f);
-    
+*/
     return 0;
 }
+/*
+What is this obj format??
 int Obj_save_mesh(char *path, Mesh *m)
 {
     int     *np=&(m->np);
@@ -1117,6 +1204,29 @@ int Obj_save_mesh(char *path, Mesh *m)
     // WRITE TRIANGLES
     for(i=0;i<*nt;i++)
         fprintf(f,"%i %i %i\n",t[i].a,t[i].b,t[i].c);
+
+    fclose(f);
+    
+    return 0;
+}
+*/
+int Obj_save_mesh(char *path, Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    FILE    *f;
+    int     i;
+    
+    f=fopen(path,"w");
+    if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
+    
+    for(i=0;i<*np;i++)
+        fprintf(f,"v %f %f %f\n",p[i].x,p[i].y,p[i].z);
+    
+    for(i=0;i<*nt;i++)
+        fprintf(f,"f %i %i %i\n",t[i].a+1,t[i].b+1,t[i].c+1);
 
     fclose(f);
     
@@ -1461,23 +1571,54 @@ int FloatData_save_data(char *path, Mesh *m)
     if(f==NULL)
         return 1;
     
-    fwrite(data,*np,sizeof(float),f);
+    fprintf(f,"%i %i 3\n",*np,m->ddim);
+    fwrite(data,(m->np)*m->ddim,sizeof(float),f);
+    fclose(f);
+    
+    return 0;
+}
+int RawFloatData_save_data(char *path, Mesh *m)
+{
+    if(verbose)
+    	printf("* RawFloatData_save_data\n");
+
+    float   *data=m->data;
+    FILE    *f;
+
+    f=fopen(path,"w");
+    
+    if(f==NULL)
+        return 1;
+    
+    fwrite(data,(m->np)*m->ddim,sizeof(float),f);
     fclose(f);
     
     return 0;
 }
 #pragma mark -
+int freeMesh(Mesh *m)
+{
+    if(verbose) printf("* freeMesh\n");
+    
+    free(m->p);
+    free(m->t);
+    if(m->data)
+        free(m->data);
+    if(m->NT)
+        free(m->NT);
+    return 0;
+}
 int loadMesh(char *path, Mesh *m,int iformat)
 {
     if(verbose) printf("* imesh\n");
 
     int        err,format;
-    
+
     if(iformat==0)
 	    format=getformatindex(path);
 	else
 		format=iformat;
-    
+
     switch(format)
     {
         case kFreeSurferMesh:
@@ -1485,6 +1626,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
             break;
         case kFreeSurferData:
             err=FreeSurfer_load_data(path,m);
+            break;
+        case kFreeSurferAnnot:
+            err=FreeSurfer_load_annot(path,m);
             break;
         case kMGHData:
             err=FreeSurfer_load_mghdata(path,m);
@@ -1526,6 +1670,51 @@ int loadMesh(char *path, Mesh *m,int iformat)
         return 1;
     }
     
+    return 0;
+}
+int addMesh(char *path, Mesh *m0,int iformat)
+{
+    // m0: old mesh
+    // m1: new mesh
+    Mesh    amesh;
+    Mesh    *m1;
+    int     i;
+
+    amesh.p=NULL;
+    amesh.t=NULL;
+    amesh.data=NULL;
+    amesh.NT=NULL;
+    
+    loadMesh(path,&amesh,iformat);
+
+    m1=(Mesh*)calloc(1,sizeof(Mesh));
+    m1->np=m0->np+amesh.np;
+    m1->nt=m0->nt+amesh.nt;
+    m1->p=(float3D*)calloc(m0->np+amesh.np,sizeof(float3D));
+    m1->t=(int3D*)calloc(m0->nt+amesh.nt,sizeof(int3D));
+    
+    // add points
+    for(i=0;i<m0->np;i++)
+        m1->p[i]=m0->p[i];
+    for(i=0;i<amesh.np;i++)
+        m1->p[m0->np+i]=amesh.p[i];
+        
+    // add triangles
+    for(i=0;i<m0->nt;i++)
+        m1->t[i]=m0->t[i];
+    for(i=0;i<amesh.nt;i++)
+        m1->t[m0->nt+i]=(int3D){amesh.t[i].a+m0->np,amesh.t[i].b+m0->np,amesh.t[i].c+m0->np};
+    
+    // free tmp mesh
+    freeMesh(&amesh);
+
+    // configure new mesh
+    freeMesh(m0);
+    m0->np=m1->np;
+    m0->nt=m1->nt;
+    m0->p=m1->p;
+    m0->t=m1->t;
+        
     return 0;
 }
 int saveMesh(char *path, Mesh *m, int oformat)
@@ -1580,6 +1769,9 @@ int saveMesh(char *path, Mesh *m, int oformat)
         case kFloatData:
             err=FloatData_save_data(path,m);
             break;
+        case kRawFloatData:
+            err=RawFloatData_save_data(path,m);
+            break;
         default:
             printf("ERROR: Output data format not recognised\n");
             err=1;
@@ -1596,74 +1788,133 @@ int saveMesh(char *path, Mesh *m, int oformat)
 
 #pragma mark -
 #pragma mark [ Geometry functions ]
-int smooth(Mesh *m)
+void absgi(Mesh *m)
 {
-    int     *np=&(m->np);
+    float   S,V,logAbsGI;
+
+    S=area(m);
+    V=volume(m);
+    
+    // log(absGI)    = log(Sx)-2log(Vx)/3-log(36π)/3
+    // absGI        = Sx/(Vx^(2/3)(36π)^(1/3))
+    logAbsGI=log(S)-2*log(V)/3.0-log(36*pi)/3.0;
+    
+    printf("S=%f, V=%f, gi=%f, log(gi)=%f\n",S,V,exp(logAbsGI),logAbsGI);
+}
+float area(Mesh *m)
+{
     int     *nt=&(m->nt);
     float3D *p=m->p;
     int3D   *t=m->t;
-    float3D *tmp;
-    int     *n;
     int     i;
+    float   area=0;
     
-    tmp=(float3D*)calloc(*np,sizeof(float3D));
-    n=(int*)calloc(*np,sizeof(int));
     for(i=0;i<*nt;i++)
+        area+=triangle_area(p[t[i].a],p[t[i].b],p[t[i].c]);
+    printf("area: %f\n",area);
+    
+    return area;
+}
+int average(int N, char *paths[], Mesh *m)
+{
+    if(verbose) printf("* average\n");
+    
+    int     i,j;
+    int     np;
+    float3D *p;
+    Mesh    m1;
+    
+    loadMesh(paths[0],m,0);
+    np=m->np;
+    p=m->p;
+    
+    for(j=1;j<N;j++)
     {
-        tmp[t[i].a]=add3D(tmp[t[i].a],add3D(p[t[i].b],p[t[i].c]));
-        tmp[t[i].b]=add3D(tmp[t[i].b],add3D(p[t[i].c],p[t[i].a]));
-        tmp[t[i].c]=add3D(tmp[t[i].c],add3D(p[t[i].a],p[t[i].b]));
-        n[t[i].a]+=2;
-        n[t[i].b]+=2;
-        n[t[i].c]+=2;
+        loadMesh(paths[j],&m1,0);
+        for(i=0;i<np;i++)
+            p[i]=add3D(p[i],(m->p)[i]);
+        free(m->p);
+        free(m->t);
     }
-    for(i=0;i<*np;i++)
-        p[i]=sca3D(tmp[i],1/(float)n[i]);
-    free(tmp);
-    free(n);
+    for(i=0;i<np;i++)
+        p[i]=sca3D(p[i],1/(float)N);
+
     return 0;
 }
-int laplace(float lambda, Mesh *m)
+void centre(Mesh *m)
 {
     int     *np=&(m->np);
-    int     *nt=&(m->nt);
     float3D *p=m->p;
-    int3D   *t=m->t;
-    float3D *tmp,x,dx;
-    int     *n;
     int     i;
+    float3D centre={0,0,0};
     
-    tmp=(float3D*)calloc(*np,sizeof(float3D));
-    n=(int*)calloc(*np,sizeof(int));
-    for(i=0;i<*nt;i++)
+    for(i=0;i<*np;i++)
+        centre=add3D(centre,p[i]);
+    centre=sca3D(centre,1/(float)*np);
+    if(verbose)
     {
-        tmp[t[i].a]=add3D(tmp[t[i].a],add3D(p[t[i].b],p[t[i].c]));
-        tmp[t[i].b]=add3D(tmp[t[i].b],add3D(p[t[i].c],p[t[i].a]));
-        tmp[t[i].c]=add3D(tmp[t[i].c],add3D(p[t[i].a],p[t[i].b]));
-        n[t[i].a]+=2;
-        n[t[i].b]+=2;
-        n[t[i].c]+=2;
+        printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
     }
     for(i=0;i<*np;i++)
-    {
-        x=sca3D(tmp[i],1/(float)n[i]);
-        dx=sub3D(x,p[i]);
-        p[i]=add3D(p[i],sca3D(dx,lambda));    // p=p+l(x-p)
-    }
-    free(tmp);
-    free(n);
-    return 0;
+        p[i]=sub3D(p[i],centre);
 }
-int taubin(float lambda, float mu, int N, Mesh *m)
+void checkOrientation(Mesh *m)
 {
-    int j;
+    float3D n=normal3D(0,m);
+    float   flipTest=dot3D(m->p[m->t[0].a],n);
     
-    for(j=0;j<2*N;j++)
-        if(j%2==0)
-            laplace(lambda,m);
-        else
-            laplace(mu,m);
-    return 0;
+    printf("orientation: %c\n",(flipTest>0)?'+':'-');
+
+}
+double  sum;
+int     *tmark,icmax,ncverts;
+void cluster(int ip, float *thrsrc, float thr, Mesh *m)
+{
+    int3D   *t=m->t;
+    NTriRec *NT=m->NT;
+    int     i,j,it;
+    int     *tt;
+    
+    tmark[ip]=1;
+    ncverts++;    
+    for(i=0;i<=NT[ip].n;i++)
+    {
+        it=NT[ip].t[i];        
+        tt=(int*)&(t[it]);
+        for(j=0;j<3;j++)
+            if(thrsrc[tt[j]]>=thr && tmark[tt[j]]==0)
+            {
+                cluster(tt[j],thrsrc,thr,m);
+                if(thrsrc[tt[j]]>thrsrc[icmax])
+                    icmax=tt[j];
+            }
+    }
+}
+void countClusters(float thr, Mesh *m)
+{
+    int     *np=&(m->np);
+    float3D *p=m->p;
+    float   *data=m->data;
+    int     n;
+    int     i;
+    
+    neighbours(m);
+    
+    n=1;
+    tmark=(int*)calloc(*np,sizeof(int));
+    printf("number\tnVertices\timax\tmax\tXmax\tYmax\tZmax\n");
+    for(i=0;i<*np;i++)
+    if(data[i]>=thr && tmark[i]==0)
+    {
+        icmax=i;
+        ncverts=0;
+        cluster(i,data,thr,m);
+        printf("%i\t%i\t%i\t%f\t%f\t%f\t%f\n",n,ncverts,icmax,data[icmax],p[icmax].x,p[icmax].y,p[icmax].z);
+        n++;
+    }
+    printf("\n");
+        
+    free(tmark);
 }
 int curvature(float *C, Mesh *m)
 {
@@ -1721,58 +1972,6 @@ int curvature(float *C, Mesh *m)
         if(C[i]<-1)   C[i]=-1;
     }
     
-    return 0;
-}
-int icurvature(int iter, Mesh *m)
-{
-    int     *np=&(m->np);
-    float   *data=m->data;
-    float   *tmp;
-    float   absmax;
-    int     i,k;
-
-    tmp=(float*)calloc(*np,sizeof(float));
-    for(k=0;k<iter;k++)
-    {
-        curvature(tmp,m);
-        for(i=0;i<*np;i++)
-            data[i]+=tmp[i]*(1+k/(float)iter);
-        
-        smooth(m);
-        smooth(m);
-    }
-    absmax=-1;
-    for(i=0;i<*np;i++)
-        absmax = (fabs(data[i])>absmax)?fabs(data[i]):absmax;
-    for(i=0;i<*np;i++)
-        data[i]/=absmax;
-    
-    return 0;
-}
-int scale(float t, Mesh *m)
-{
-    int     *np=&(m->np);
-    float3D *p=m->p;
-    int     i;
-    
-    for(i=0;i<*np;i++)
-        p[i]=sca3D(p[i],t);
-    
-    return 0;
-}
-int flip(Mesh *m)
-{
-    if(verbose) printf("* flip\n");
-
-    int     nt=m->nt;
-    int3D   *t=m->t;
-    int     i;    
-
-    for(i=0;i<nt;i++)
-    {
-       // printf("%i %i %i\n",t[i].a,t[i].b,t[i].c);
-        t[i]=(int3D){t[i].a,t[i].c,t[i].b};
-    }
     return 0;
 }
 int fixflip(Mesh *m)
@@ -1880,55 +2079,20 @@ int fixSmall(Mesh *m)
     
     return 0;
 }
-double  sum;
-int     *tmark,icmax,ncverts;
-void cluster(int ip, float *thrsrc, float thr, Mesh *m)
+int flip(Mesh *m)
 {
+    if(verbose) printf("* flip\n");
+
+    int     nt=m->nt;
     int3D   *t=m->t;
-    NTriRec *NT=m->NT;
-    int     i,j,it;
-    int     *tt;
-    
-    tmark[ip]=1;
-    ncverts++;    
-    for(i=0;i<=NT[ip].n;i++)
+    int     i;    
+
+    for(i=0;i<nt;i++)
     {
-        it=NT[ip].t[i];        
-        tt=(int*)&(t[it]);
-        for(j=0;j<3;j++)
-            if(thrsrc[tt[j]]>=thr && tmark[tt[j]]==0)
-            {
-                cluster(tt[j],thrsrc,thr,m);
-                if(thrsrc[tt[j]]>thrsrc[icmax])
-                    icmax=tt[j];
-            }
+       // printf("%i %i %i\n",t[i].a,t[i].b,t[i].c);
+        t[i]=(int3D){t[i].a,t[i].c,t[i].b};
     }
-}
-void countClusters(float thr, Mesh *m)
-{
-    int     *np=&(m->np);
-    float3D *p=m->p;
-    float   *data=m->data;
-    int     n;
-    int     i;
-    
-    neighbours(m);
-    
-    n=1;
-    tmark=(int*)calloc(*np,sizeof(int));
-    printf("number\tnVertices\timax\tmax\tXmax\tYmax\tZmax\n");
-    for(i=0;i<*np;i++)
-    if(data[i]>=thr && tmark[i]==0)
-    {
-        icmax=i;
-        ncverts=0;
-        cluster(i,data,thr,m);
-        printf("%i\t%i\t%i\t%f\t%f\t%f\t%f\n",n,ncverts,icmax,data[icmax],p[icmax].x,p[icmax].y,p[icmax].z);
-        n++;
-    }
-    printf("\n");
-        
-    free(tmark);
+    return 0;
 }
 int foldLength(Mesh *m)
 {
@@ -1971,6 +2135,63 @@ int foldLength(Mesh *m)
             length+=norm3D(sub3D(p0[0],p0[1]));
     }
     printf("foldLength: %f\n",length/2.0);
+    return 0;
+}
+int icurvature(int iter, Mesh *m)
+{
+    int     *np=&(m->np);
+    float   *data=m->data;
+    float   *tmp;
+    float   absmax;
+    int     i,k;
+
+    tmp=(float*)calloc(*np,sizeof(float));
+    for(k=0;k<iter;k++)
+    {
+        curvature(tmp,m);
+        for(i=0;i<*np;i++)
+            data[i]+=tmp[i]*(1+k/(float)iter);
+        
+        smooth(m);
+        smooth(m);
+    }
+    absmax=-1;
+    for(i=0;i<*np;i++)
+        absmax = (fabs(data[i])>absmax)?fabs(data[i]):absmax;
+    for(i=0;i<*np;i++)
+        data[i]/=absmax;
+    
+    return 0;
+}
+int laplace(float lambda, Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *tmp,x,dx;
+    int     *n;
+    int     i;
+    
+    tmp=(float3D*)calloc(*np,sizeof(float3D));
+    n=(int*)calloc(*np,sizeof(int));
+    for(i=0;i<*nt;i++)
+    {
+        tmp[t[i].a]=add3D(tmp[t[i].a],add3D(p[t[i].b],p[t[i].c]));
+        tmp[t[i].b]=add3D(tmp[t[i].b],add3D(p[t[i].c],p[t[i].a]));
+        tmp[t[i].c]=add3D(tmp[t[i].c],add3D(p[t[i].a],p[t[i].b]));
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    for(i=0;i<*np;i++)
+    {
+        x=sca3D(tmp[i],1/(float)n[i]);
+        dx=sub3D(x,p[i]);
+        p[i]=add3D(p[i],sca3D(dx,lambda));    // p=p+l(x-p)
+    }
+    free(tmp);
+    free(n);
     return 0;
 }
 int level(float v, Mesh *m)
@@ -2196,31 +2417,6 @@ int lissencephalic(int iter, Mesh *m)
     
     return 0;
 }
-void centre(Mesh *m)
-{
-    int     *np=&(m->np);
-    float3D *p=m->p;
-    int     i;
-    float3D centre={0,0,0};
-    
-    for(i=0;i<*np;i++)
-        centre=add3D(centre,p[i]);
-    centre=sca3D(centre,1/(float)*np);
-    if(verbose)
-    {
-        printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
-    }
-    for(i=0;i<*np;i++)
-        p[i]=sub3D(p[i],centre);
-}
-void checkOrientation(Mesh *m)
-{
-    float3D n=normal3D(0,m);
-    float   flipTest=dot3D(m->p[m->t[0].a],n);
-    
-    printf("orientation: %c\n",(flipTest>0)?'+':'-');
-
-}
 void normalise(Mesh *m)
 {
     int     *np=&(m->np);
@@ -2230,47 +2426,97 @@ void normalise(Mesh *m)
     for(i=0;i<*np;i++)
         p[i]=sca3D(p[i],1/norm3D(p[i]));
 }
-float area(Mesh *m)
+int relaxMesh(char *path, Mesh *m0,int iformat)
 {
-    int     *nt=&(m->nt);
-    float3D *p=m->p;
-    int3D   *t=m->t;
-    int     i;
-    float   area=0;
-    
-    for(i=0;i<*nt;i++)
-        area+=triangle_area(p[t[i].a],p[t[i].b],p[t[i].c]);
-    printf("area: %f\n",area);
-    
-    return area;
-}
-// Code By S Melax from http://www.melax.com/volint/
-float volume(Mesh *m)
-{
-    int     *nt=&(m->nt);
-    float3D *p=m->p;
-    int3D   *t=m->t;
-    float   vol=0;
-    int     i;
-    
-    for(i=0;i<*nt;i++)
-        vol += determinant(p[t[i].a],p[t[i].b],p[t[i].c]); //divide by 6 later for efficiency
-    vol/=6.0;// since the determinant give 6 times tetra volume
-    printf("volume: %f\n",vol);
-    return vol;
-}
-void absgi(Mesh *m)
-{
-    float   S,V,logAbsGI;
+/*
+    // m0: actual mesh
+    // m1: reference mesh
+    Mesh    *m1;
+    int     i,a,b;
+    float   sum,l1,l0,k=1;
+    float3D f,*p0,*p;
+    int     *t0;
 
-    S=area(m);
-    V=volume(m);
+    m1=(Mesh*)calloc(1,sizeof(Mesh));
+    loadMesh(path,m1,iformat);
     
-    // log(absGI)    = log(Sx)-2log(Vx)/3-log(36π)/3
-    // absGI        = Sx/(Vx^(2/3)(36π)^(1/3))
-    logAbsGI=log(S)-2*log(V)/3.0-log(36*pi)/3.0;
+    p0=m0->p;
+    p1=m1->p;
     
-    printf("S=%f, V=%f, gi=%f, log(gi)=%f\n",S,V,exp(logAbsGI),logAbsGI);
+    // compute total force
+    sum=0;
+    for(i=0;i<m0->nt;i++)
+    {
+        t0=&(m0->t[i]);
+        for(j=0;j<3;j++)
+        {
+            a=t[j];
+            b=t[(j+1)%3];
+            if(a<b])
+            {
+                l0=norm3D(sub3D(p0[a],p0[b]));
+                l1=norm3D(sub3D(p1[a],p1[b]));
+                f=sca3D(sub3D(p0[b],p0[a]),k*(1-l1/l0));
+                sum+=norm3D(f);//silly...
+            }
+        }
+    }
+    f=sca3D(f,m0->nt*3/2);
+    printf
+    
+    // free m1
+    freeMesh(m1);
+*/
+    return 0;
+}
+int scale(float t, Mesh *m)
+{
+    int     *np=&(m->np);
+    float3D *p=m->p;
+    int     i;
+    
+    for(i=0;i<*np;i++)
+        p[i]=sca3D(p[i],t);
+    
+    return 0;
+}
+int smooth(Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *tmp;
+    int     *n;
+    int     i;
+    
+    tmp=(float3D*)calloc(*np,sizeof(float3D));
+    n=(int*)calloc(*np,sizeof(int));
+    for(i=0;i<*nt;i++)
+    {
+        tmp[t[i].a]=add3D(tmp[t[i].a],add3D(p[t[i].b],p[t[i].c]));
+        tmp[t[i].b]=add3D(tmp[t[i].b],add3D(p[t[i].c],p[t[i].a]));
+        tmp[t[i].c]=add3D(tmp[t[i].c],add3D(p[t[i].a],p[t[i].b]));
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    for(i=0;i<*np;i++)
+        p[i]=sca3D(tmp[i],1/(float)n[i]);
+    free(tmp);
+    free(n);
+    return 0;
+}
+int taubin(float lambda, float mu, int N, Mesh *m)
+{
+    int j;
+    
+    for(j=0;j<2*N;j++)
+        if(j%2==0)
+            laplace(lambda,m);
+        else
+            laplace(mu,m);
+    return 0;
 }
 void threshold(float thr, int direction, Mesh *m)
 {
@@ -2294,6 +2540,21 @@ void threshold(float thr, int direction, Mesh *m)
             else
                 data[i]=-1;
     }
+}
+// Code By S Melax from http://www.melax.com/volint/
+float volume(Mesh *m)
+{
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float   vol=0;
+    int     i;
+    
+    for(i=0;i<*nt;i++)
+        vol += determinant(p[t[i].a],p[t[i].b],p[t[i].c]); //divide by 6 later for efficiency
+    vol/=6.0;// since the determinant give 6 times tetra volume
+    printf("volume: %f\n",vol);
+    return vol;
 }
 int normal(Mesh *m)
 {
@@ -2464,80 +2725,58 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     
     return 0;
 }
-int average(int N, char *paths[], Mesh *m)
-{
-    if(verbose) printf("* average\n");
-    
-    int     i,j;
-    int     np;
-    float3D *p;
-    Mesh    m1;
-    
-    loadMesh(paths[0],m,0);
-    np=m->np;
-    p=m->p;
-    
-    for(j=1;j<N;j++)
-    {
-        loadMesh(paths[j],&m1,0);
-        for(i=0;i<np;i++)
-            p[i]=add3D(p[i],(m->p)[i]);
-        free(m->p);
-        free(m->t);
-    }
-    for(i=0;i<np;i++)
-        p[i]=sca3D(p[i],1/(float)N);
-
-    return 0;
-}
 void printHelp(void)
 {
      printf("\
  Commands\n\
     -iformat format name                             Force input format (needs to precede imesh)\n\
     -oformat format name                             Force output format (needs to precede omesh)\n\
-    -i filename			                             Input file (also accepts -imesh)\n\
-    -o filename		                                 Output file (also accepts -omesh)\n\
+    -i filename                                      Input file (also accepts -imesh)\n\
+    -o filename                                      Output file (also accepts -omesh)\n\
     -odata filename                                  Output data\n\
-    -curv                                            Compute curvature\n\
-    -icurv number_of_iterations                      Integrated curvature\n\
-    -laplaceSmooth lambda number_of_iterations       Laplace smoothing\n\
-    -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
-    -scale scale_value                               Multiply each vertex by \"scale\"\n\
+    \n\
+    -absgi                                           Compute absolute gyrification index\n\
+    -add filename                                    Add mesh at filename to the current mesh\n\
     -average n_meshes path1 path2 ... pathn          Compute an average of n_meshes all\n\
                                                        of the same topology\n\
+    -centre                                          Move the mesh's barycentre to the origin\n\
+    -countClusters                                   Count clusters in texture data\n\
+    -curv                                            Compute curvature\n\
     -euler                                           Print Euler characteristic\n\
-    -flip                                            Flip normals\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
     -fixSmall                                        Detect triangles with an angle >160\n\
+    -flip                                            Flip normals\n\
                                                        degrees and fix them\n\
-    -centre                                          Move the mesh's barycentre to the origin\n\
+    -foldLength                                      Compute total fold length\n\
+    -h                                               Help\n\
+    -icurv number_of_iterations                      Integrated curvature\n\
+    -laplaceSmooth lambda number_of_iterations       Laplace smoothing\n\
     -lissencephalic                                  Smooth valleys and hills, not the coast\n\
     -level level_value                               Adds new vertices (and triangles) to the\n\
                                                        edges that cross level_value in the\n\
                                                        vertex data (f.ex., mean curvature)\n\
+    -normal                                          Mesh normal vectors\n\
     -normalise                                       Place all vertices at distance 1 from\n\
                                                        the origin\n\
-    -volume                                          Compute mesh volume\n\
-    -absgi                                           Compute absolute gyrification index\n\
-    -foldLength                                      Compute total fold length\n\
-    -threshold                                       Threshold texture data\n\
-    -countClusters                                   Count clusters in texture data\n\
-    -normal                                          Mesh normal vectors\n\
     -randverts number_of_vertices                    Generate homogeneously distributed\n\
                                                        random vertices over the mesh\n\
+    -relax filename                                  Relax current mesh to mesh at filename\n\
+                                                        (both meshes have the same topology)\n\
     -resample smooth_mesh reference_mesh             Resample the mesh to match the vertices\n\
                                                        and the topology of the argument mesh\n\
+    -scale scale_value                               Multiply each vertex by \"scale\"\n\
+    -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
+    -threshold                                       Threshold texture data\n\
     -v                                               Verbose mode\n\
-    -h                                               Help\n\
+    -volume                                          Compute mesh volume\n\
     \n\
     Meshgeometry can read and write several formats, based on the file extension:\n\
     .orig, .pial, .white, .inflated, .sphere, .reg   Freesurfer meshes\n\
     .curv, .sulc, .sratio                            Freesurfer data\n\
     .mesh                                            BrainVisa meshe\n\
     .txt                                             RT's mesh plain text format\n\
-    .float											 Raw float data\n\
-    .txt1 				                             RT's data format\n\
+    .float                                           Raw float data\n\
+    .txt1                                            RT's data format\n\
     .bin                                             n-e-r-v-o-u-s system web binary mesh\n\
     .wrl, .obj, .ply, .stl, .smesh, .off             Miscellaneous mesh formats\n\
 ");
@@ -2547,12 +2786,13 @@ int main(int argc, char *argv[])
     checkEndianness();
     
     int    i;
-    int	   iformat=0;
+    int    iformat=0;
     int    oformat=0;
     
     mesh.p=NULL;
     mesh.t=NULL;
     mesh.data=NULL;
+    mesh.ddim=1;
     mesh.NT=NULL;
     
     i=1;
@@ -2560,7 +2800,7 @@ int main(int argc, char *argv[])
     {
         if(strcmp(argv[i],"-iformat")==0)
         {
-            char	str[256];
+            char    str[256];
             sprintf(str," .%s",argv[++i]);
             printf("iformat: %s\n",str);
             iformat=getformatindex(str);
@@ -2568,7 +2808,7 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-oformat")==0)
         {
-            char	str[256];
+            char    str[256];
             sprintf(str," .%s",argv[++i]);
             oformat=getformatindex(str);
         }
@@ -2598,6 +2838,16 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-odata")==0)
         {
             Text_save_data(argv[++i],&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-add")==0)
+        {
+            addMesh(argv[++i],&mesh,iformat);
+        }
+        else
+        if(strcmp(argv[i],"-relax")==0)
+        {
+            relaxMesh(argv[++i],&mesh,iformat);
         }
         else
         if(strcmp(argv[i],"-checkOrientation")==0)
@@ -2769,12 +3019,8 @@ int main(int argc, char *argv[])
         i++;
     }
     
-    free(mesh.p);
-    free(mesh.t);
-    if(mesh.data)
-        free(mesh.data);
-    if(mesh.NT)
-        free(mesh.NT);
+    freeMesh(&mesh);
+
     if(verbose)
         printf("Done.\n");
     return 0;
