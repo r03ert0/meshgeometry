@@ -13,7 +13,7 @@ char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // add
 #include <unistd.h>
 
 #define pi 3.14159265358979323846264338327950288419716939927510
-#define EPSILON  0.00000001 // small enough to avoid division overflow
+#define EPSILON  0.000001 // small enough to avoid division overflow
 #define min(a,b) (((a)<(b))?(a):(b))
 
 #define kMAXNETRIS          100
@@ -591,7 +591,6 @@ int FreeSurfer_load_mghdata(char *path, Mesh *m)
     if(f==NULL)
         return 1;
     
-    f=fopen(path,"r");
     fread(&v,1,sizeof(int),f);          swapint(&v);
     fread(&ndim1,1,sizeof(int),f);		swapint(&ndim1);
     fread(&ndim2,1,sizeof(int),f);		swapint(&ndim2);
@@ -743,6 +742,47 @@ int FreeSurfer_save_data(char *path, Mesh *m)
         fwrite(data,*np,sizeof(float),f);
     fclose(f);
 
+    return 0;
+}
+int FreeSurfer_save_mghdata(char *path, Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    FILE    *f;
+    int     v,ndim1,ndim2,ndim3,nframes,type,dof;
+    int     i;
+    float   x;
+
+    f=fopen(path,"w");
+    if(f==NULL)
+        return 1;
+    
+    v=1;
+    ndim1=np;
+    ndim2=1;
+    ndim3=1;
+    nframes=1;
+    type=3;
+    dof=0;
+    
+    swapint(&v);        fwrite(&v,1,sizeof(int),f);
+    swapint(&ndim1);    fwrite(&ndim1,1,sizeof(int),f);
+    swapint(&ndim2);    fwrite(&ndim2,1,sizeof(int),f);
+    swapint(&ndim3);    fwrite(&ndim3,1,sizeof(int),f);
+    swapint(&nframes);  fwrite(&nframes,1,sizeof(int),f);
+    swapint(&type);     fwrite(&type,1,sizeof(int),f);
+    swapint(&dof);      fwrite(&dof,1,sizeof(int),f);
+    
+    fseek(f,64*4,SEEK_CUR);
+    for(i=0;i<np;i++)
+    {
+        x=data[i];
+        swapfloat(&x);
+        fwrite(&x,1,sizeof(float),f);
+        
+    }
+    fclose(f);
+    
     return 0;
 }
 int BrainVisa_load_mesh(char *path, Mesh *m)
@@ -1110,8 +1150,6 @@ int VRML_save_mesh(char *path, Mesh *m)
 
     return 0;
 }
-int Obj_load(char *path, Mesh *m)
-{
 /* What is this obj format??
     int     *np=&(m->np);
     int     *nt=&(m->nt);
@@ -1156,8 +1194,6 @@ int Obj_load(char *path, Mesh *m)
 
     fclose(f);
 */
-    return 0;
-}
 /*
 What is this obj format??
 int Obj_save_mesh(char *path, Mesh *m)
@@ -1210,6 +1246,59 @@ int Obj_save_mesh(char *path, Mesh *m)
     return 0;
 }
 */
+int Obj_load(char *path, Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D **p=&(m->p);
+    int3D   **t=&(m->t);
+    FILE    *f;
+    char    str[1024],s[16];
+    
+    f=fopen(path,"r");
+    *np=*nt=0;
+    while(!feof(f))
+    {
+        fgets(str,1024,f);
+        sscanf(str," %s ",s);
+        if(strcmp(s,"v")==0)
+            (*np)++;
+        if(strcmp(s,"f")==0)
+            (*nt)++;
+    }
+    fclose(f);
+    
+    *p = (float3D*)calloc(*np,sizeof(float3D));
+    if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
+    *t = (int3D*)calloc(*nt,sizeof(int3D));
+    if(*t==NULL){printf("ERROR: Not enough memory for mesh triangles\n");return 1;}
+
+    f=fopen(path,"r"); 
+    *np=*nt=0;
+    while(!feof(f))
+    {
+        fgets(str,1024,f);
+        sscanf(str," %s ",s);
+        if(strcmp(s,"v")==0)
+        {
+            sscanf(str," %*s %f %f %f ",&((*p)[*np].x),&((*p)[*np].y),&((*p)[*np].z));
+            (*np)++;
+        }
+        if(strcmp(s,"f")==0)
+        {
+            sscanf(str,"f %i %i %i ",&((*t)[*nt].a),&((*t)[*nt].b),&((*t)[*nt].c));
+            (*t)[*nt].a--;
+            (*t)[*nt].b--;
+            (*t)[*nt].c--;
+            (*nt)++;
+        }
+    }
+    if(verbose)
+        printf("Read %i vertices and %i triangles\n",*np,*nt);
+
+    // READ TRIANGLES
+    return 0;
+}
 int Obj_save_mesh(char *path, Mesh *m)
 {
     int     *np=&(m->np);
@@ -1736,6 +1825,9 @@ int saveMesh(char *path, Mesh *m, int oformat)
         case kFreeSurferData:
             err=FreeSurfer_save_data(path,m);
             break;
+        case kMGHData:
+            err=FreeSurfer_save_mghdata(path,m);
+            break;
         case kBrainVisaMesh:
             err=BrainVisa_save_mesh(path,m);
             break;
@@ -1839,6 +1931,101 @@ int average(int N, char *paths[], Mesh *m)
     for(i=0;i<np;i++)
         p[i]=sca3D(p[i],1/(float)N);
 
+    return 0;
+}
+int barycentricProjection(char *path_rm, Mesh *m)
+{
+    /*
+    If the mesh is a smooth mesh (for example, spherical), and given
+    a smooth reference mesh (rm) print for each vertex in rm its
+    barycentric coordinates within the triangles of the mesh. This
+    permits, for example, to map data defined over the vertices of
+    the mesh over rm.
+    */
+    Mesh    rm;
+    int     nt;
+    int3D   *t;
+    int     np_rm;
+    float3D *p,*p_rm;
+    float   c0,c1;
+    int     i,j,result;
+    float3D n;
+    float   flipTest;
+    
+    loadMesh(path_rm,&rm,0);
+    
+    // Check whether the meshes are properly oriented
+    n=normal3D(0,m);
+    flipTest=dot3D(m->p[m->t[0].a],n);
+    if(flipTest<0)
+    {
+        printf("ERROR: the mesh is mis-oriented\n");
+        return 1;
+    }
+    n=normal3D(0,&rm);
+    flipTest=dot3D(rm.p[rm.t[0].a],n);
+    if(flipTest<0)
+    {
+        printf("ERROR: rm is mis-oriented\n");
+        return 1;
+    }
+    
+    // Actual mesh (smooth)
+    p=m->p;
+    nt=m->nt;
+    t=m->t;
+
+    // Reference mesh (smooth)
+    np_rm=rm.np;
+    p_rm=rm.p;
+    
+    for(i=0;i<np_rm;i++)
+    {
+        for(j=0;j<nt;j++)
+        {
+            result=intersect_VectorTriangle(p_rm[i],j,&c0,&c1,m);
+            if(result==1)
+            {
+                printf("%i %f %f\n",j,c0,c1);
+                break;
+            }
+        }
+        if(j==nt)
+        {
+            int k,imin=0;
+            float   d,dmin=1000;
+            printf("ERROR: could not resample point %i of the reference mesh (%f %f %f)\n",i,p_rm[i].x,p_rm[i].y,p_rm[i].z);
+            for(k=0;k<m->np;k++)
+            {
+                d=norm3D(sub3D(m->p[k],p_rm[i]));
+                if(d<dmin)
+                {
+                    dmin=d;
+                    imin=k;
+                }
+            }
+            printf("closest vertex %i (%f,%f,%f), dist=%f\n",imin,p[imin].x,p[imin].y,p[imin].z,dmin);
+
+            result=intersect_VectorTriangle(p_rm[i],1984,&c0,&c1,m);
+            printf(">> t[1984] c0,c1: %f, %f\n",c0,c1);
+            result=intersect_VectorTriangle(p_rm[i],1920,&c0,&c1,m);
+            printf(">> t[1920] c0,c1: %f, %f\n",c0,c1);
+
+            printf("triangles including vertex %i\n",imin);
+            for(k=0;k<nt;k++)
+            {
+                if(t[k].a==imin||t[k].b==imin||t[k].c==imin)
+                {
+                    printf("%i. %i,%i,%i\n",k,t[k].a,t[k].b,t[k].c);
+                    printf("   %i: %f,%f,%f\n",t[k].a,p[t[k].a].x,p[t[k].a].y,p[t[k].a].z);
+                    printf("   %i: %f,%f,%f\n",t[k].b,p[t[k].b].x,p[t[k].b].y,p[t[k].b].z);
+                    printf("   %i: %f,%f,%f\n",t[k].c,p[t[k].c].x,p[t[k].c].y,p[t[k].c].z);
+                }
+            }
+            return 1;
+        }
+    }
+    
     return 0;
 }
 void centre(Mesh *m)
@@ -2469,6 +2656,47 @@ int relaxMesh(char *path, Mesh *m0,int iformat)
 */
     return 0;
 }
+int rotate(Mesh *m, float x, float y, float z)
+{
+    printf("rotate %f %f %f\n",x,y,z);
+    int i;
+    float   M[9];
+    float3D *p=m->p,pp;
+    
+   /*
+    M[0]=cos(z)*cos(y)*cos(x)-sin(z)*sin(x);
+    M[1]=cos(z)*cos(y)*sin(x)+sin(z)*cos(x);
+    M[2]=-cos(z)*sin(y);
+    
+    M[3]=-sin(z)*cos(y)*cos(x)-cos(z)*sin(x);
+    M[4]=-sin(z)*cos(y)*sin(x)+cos(z)*cos(x);
+    M[5]=sin(z)*sin(y);
+    
+    M[6]=sin(y)*cos(x);
+    M[7]=sin(y)*sin(x);
+    M[8]=cos(y);
+    */
+    M[0]=cos(z)*cos(y);
+    M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
+    M[2]=sin(z)*sin(x)+cos(z)*sin(y)*cos(x);
+    
+    M[3]=sin(z)*cos(y);
+    M[4]=cos(z)*cos(x)+sin(z)*sin(y)*sin(x);
+    M[5]=-cos(z)*sin(x)+sin(z)*sin(y)*cos(x);
+    
+    M[6]=-sin(y);
+    M[7]=cos(y)*sin(x);
+    M[8]=cos(y)*cos(x);
+    
+    for(i=0;i<m->np;i++)
+    {
+        pp.x=M[0]*p[i].x+M[1]*p[i].y+M[2]*p[i].z;
+        pp.y=M[3]*p[i].x+M[4]*p[i].y+M[5]*p[i].z;
+        pp.z=M[6]*p[i].x+M[7]*p[i].y+M[8]*p[i].z;
+        p[i]=pp;
+    }
+    return 0;
+}
 int scale(float t, Mesh *m)
 {
     int     *np=&(m->np);
@@ -2505,6 +2733,64 @@ int smooth(Mesh *m)
         p[i]=sca3D(tmp[i],1/(float)n[i]);
     free(tmp);
     free(n);
+    return 0;
+}
+int stereographic(Mesh *m)
+{
+    int     i,nt;
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    int3D   *t1;    
+    float	x,y,z,n;
+    float	h,v,delta;
+    float   min,max;
+    
+    // find max and min height
+    for(i=0;i<m->np;i++)
+    {    
+        n=sqrt(p[i].x*p[i].x+p[i].y*p[i].y+p[i].z*p[i].z);
+        if(i==0)
+            min=max=n;
+        if(n<min)
+            min=n;
+        if(n>max)
+            max=n;
+    }   
+    
+    // universal polar stereographic projection 
+    for(i=0;i<m->np;i++)
+    {    
+        n=sqrt(p[i].x*p[i].x+p[i].y*p[i].y+p[i].z*p[i].z);
+        x = acos(p[i].x/n);
+        y = acos(p[i].y/n);
+        z = acos(p[i].z/n);
+
+        if(z*z<0.000001)	delta=1;
+        else		        delta = cos(y)/sin(z);
+        if(delta<-1) delta=-1;
+        if(delta>1) delta=1;
+    
+        h = z*sin(acos(delta));
+        v = z*delta;
+        if(x>pi/2.0)
+            p[i]=(float3D){-h,v,(max-min)?((n-min)/(max-min)):0};
+        else
+            p[i]=(float3D){ h,v,(max-min)?((n-min)/(max-min)):0};
+    }
+    
+    // delete triangles close to the border
+    t1=(int3D*)calloc(m->nt,sizeof(int3D));
+    nt=0;
+    for(i=0;i<m->nt;i++)
+    {
+        if( norm3D(sub3D(p[t[i].a],p[t[i].b]))<pi/4.0 &&
+            norm3D(sub3D(p[t[i].b],p[t[i].c]))<pi/4.0 &&
+            norm3D(sub3D(p[t[i].c],p[t[i].a]))<pi/4.0)
+            t1[nt++]=t[i];
+    }
+    m->t=t1;
+    m->nt=nt;
+    printf("new nt: %i\n",nt);
     return 0;
 }
 int taubin(float lambda, float mu, int N, Mesh *m)
@@ -2642,6 +2928,10 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     and the reference mesh rm. I'll have to find for each vertex in rm the
     corresponding triangle and c0, c1 coordinates in m1, and store the coordinates
     of that point in m
+
+    m:          the mesh
+    path_m1:    path to smoothed version of the mesh (for example, spherical)
+    path_rm:    path to the smoothed version of the reference mesh (for example, spherical)
     */
     Mesh    m1,rm;
     int     nt;
@@ -2737,8 +3027,11 @@ void printHelp(void)
     \n\
     -absgi                                           Compute absolute gyrification index\n\
     -add filename                                    Add mesh at filename to the current mesh\n\
+    -area                                            Surface area\n\
     -average n_meshes path1 path2 ... pathn          Compute an average of n_meshes all\n\
                                                        of the same topology\n\
+    -barycentricProjection reference_mesh            Print barycentric coordinates for each vertex in reference_mesh\n\
+    -checkOrientation                                Check that normals point outside\n\
     -centre                                          Move the mesh's barycentre to the origin\n\
     -countClusters                                   Count clusters in texture data\n\
     -curv                                            Compute curvature\n\
@@ -2764,10 +3057,14 @@ void printHelp(void)
                                                         (both meshes have the same topology)\n\
     -resample smooth_mesh reference_mesh             Resample the mesh to match the vertices\n\
                                                        and the topology of the argument mesh\n\
+    -rotate x y z                                    Rotate with angles x, y and z\n\
     -scale scale_value                               Multiply each vertex by \"scale\"\n\
+    -stereographic                                   Stereographic projection\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
     -threshold                                       Threshold texture data\n\
+    -tris                                            Display number of triangles\n\
     -v                                               Verbose mode\n\
+    -verts                                           Display number of vertices\n\
     -volume                                          Compute mesh volume\n\
     \n\
     Meshgeometry can read and write several formats, based on the file extension:\n\
@@ -2848,6 +3145,12 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-relax")==0)
         {
             relaxMesh(argv[++i],&mesh,iformat);
+        }
+        else
+        if(strcmp(argv[i],"-barycentricProjection")==0)    // print barycentric coordinates for each vertex of reference mesh
+        {
+            barycentricProjection(argv[i+1],&mesh);
+            i+=1;
         }
         else
         if(strcmp(argv[i],"-checkOrientation")==0)
@@ -2995,6 +3298,27 @@ int main(int argc, char *argv[])
         {
             resample(argv[i+1],argv[i+2],&mesh);
             i+=2;
+        }
+        else
+        if(strcmp(argv[i],"-rotate")==0)    // rotate with angles x, y and z
+        {
+            rotate(&mesh,atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]));
+            i+=3;
+        }
+        else
+        if(strcmp(argv[i],"-stereographic")==0)    // stereographic projection
+        {
+            stereographic(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-verts")==0)    // display number of vertices
+        {
+            printf("verts: %i\n",mesh.np);
+        }
+        else
+        if(strcmp(argv[i],"-tris")==0)    // display number of triangles
+        {
+            printf("tris: %i\n",mesh.nt);
         }
         else
         if(strcmp(argv[i],"-h")==0)    // help
