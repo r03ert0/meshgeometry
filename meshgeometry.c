@@ -97,6 +97,10 @@ float norm3D(float3D a)
 {
     return sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
 }
+float norm3Dsqr(float3D a)
+{
+    return a.x*a.x+a.y*a.y+a.z*a.z;
+}
 float3D normal3D(int i, Mesh *m)
 {
     float3D *p=m->p;
@@ -2077,6 +2081,15 @@ void cluster(int ip, float *thrsrc, float thr, Mesh *m)
             }
     }
 }
+float cot(float3D a, float3D b)
+{
+    // cot(a,b)=cos(a,b)/sin(a,b)=a*b/sqrt(|a|^2*|b|^2-(a*b)^2)
+    float   ab=dot3D(a,b);
+    float   na2=norm3Dsqr(a);
+    float   nb2=norm3Dsqr(b);
+    
+    return ab/sqrt(na2*nb2-ab*ab);
+}
 void countClusters(float thr, Mesh *m)
 {
     int     *np=&(m->np);
@@ -2089,17 +2102,22 @@ void countClusters(float thr, Mesh *m)
     
     n=1;
     tmark=(int*)calloc(*np,sizeof(int));
-    printf("number\tnVertices\timax\tmax\tXmax\tYmax\tZmax\n");
+    if(verbose)
+        printf("number\tnVertices\timax\tmax\tXmax\tYmax\tZmax\n");
     for(i=0;i<*np;i++)
     if(data[i]>=thr && tmark[i]==0)
     {
         icmax=i;
         ncverts=0;
         cluster(i,data,thr,m);
-        printf("%i\t%i\t%i\t%f\t%f\t%f\t%f\n",n,ncverts,icmax,data[icmax],p[icmax].x,p[icmax].y,p[icmax].z);
+        if(verbose)
+            printf("%i\t%i\t%i\t%f\t%f\t%f\t%f\n",n,ncverts,icmax,data[icmax],p[icmax].x,p[icmax].y,p[icmax].z);
         n++;
     }
-    printf("\n");
+    if(verbose)
+        printf("\n");
+    else
+        printf("countClusters: %i\n",n-1);
         
     free(tmark);
 }
@@ -2148,6 +2166,7 @@ int curvature(float *C, Mesh *m)
         C[i]=-dot3D(tmp1[i],tmp[i]);
     free(tmp);
     free(tmp1);
+    
     absmax=-1;
     for(i=0;i<*np;i++)
         absmax=(fabs(C[i])>absmax)?fabs(C[i]):absmax;
@@ -2158,6 +2177,74 @@ int curvature(float *C, Mesh *m)
         if(C[i]>1)    C[i]=1;
         if(C[i]<-1)   C[i]=-1;
     }
+    
+    return 0;
+}
+int curvature_exact(float *C, Mesh *m)
+{
+    // Adapted from Sullivan (2008) Curvatures of smooth and discrete surfaces
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *tmp,*tmp1;
+    int     *n;
+    float3D a,b,c,nn;
+    float   cotab,cotbc,cotca;
+    int     i;
+
+    tmp=(float3D*)calloc(*np,sizeof(float3D));
+    n=(int*)calloc(*np,sizeof(int));
+    for(i=0;i<*nt;i++)
+    {
+        a=p[t[i].a];
+        b=p[t[i].b];
+        c=p[t[i].c];
+        cotab=cot(sub3D(a,c),sub3D(b,c));
+        cotbc=cot(sub3D(b,a),sub3D(c,a));
+        cotca=cot(sub3D(c,b),sub3D(a,b));
+        tmp[t[i].a]=add3D(tmp[t[i].a], sca3D(sub3D(a,b),cotab));
+        tmp[t[i].a]=add3D(tmp[t[i].a], sca3D(sub3D(a,c),cotca));
+        tmp[t[i].b]=add3D(tmp[t[i].b], sca3D(sub3D(b,c),cotbc));
+        tmp[t[i].b]=add3D(tmp[t[i].b], sca3D(sub3D(b,a),cotab));
+        tmp[t[i].c]=add3D(tmp[t[i].c], sca3D(sub3D(c,a),cotca));
+        tmp[t[i].c]=add3D(tmp[t[i].c], sca3D(sub3D(c,b),cotbc));
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    for(i=0;i<*np;i++)
+        tmp[i]=sca3D(tmp[i],1/(float)n[i]);
+        
+    tmp1=(float3D*)calloc(*np,sizeof(float3D));
+    // compute normal direction as the average of neighbour triangle normals
+    for(i=0;i<*nt;i++)
+    {
+        nn=cross3D(sub3D(p[t[i].b],p[t[i].a]),sub3D(p[t[i].c],p[t[i].a]));
+        nn=sca3D(nn,1/norm3D(nn));
+        tmp1[t[i].a]=add3D(tmp1[t[i].a],nn);
+        tmp1[t[i].b]=add3D(tmp1[t[i].b],nn);
+        tmp1[t[i].c]=add3D(tmp1[t[i].c],nn);
+    }
+    for(i=0;i<*np;i++)
+        tmp1[i]=sca3D(tmp1[i],1/(float)n[i]);
+    free(n);
+    
+    for(i=0;i<*np;i++)
+        C[i]=dot3D(tmp1[i],tmp[i]);
+    free(tmp);
+    free(tmp1);
+
+    /*
+    float   min,max;
+    min=max=0;
+    for(i=0;i<*np;i++)
+    {
+        min=(C[i]<min)?C[i]:min;
+        max=(C[i]>max)?C[i]:max;
+    }
+    printf("min,max=%f,%f\n",min,max);
+    */
     
     return 0;
 }
@@ -2604,6 +2691,87 @@ int lissencephalic(int iter, Mesh *m)
     
     return 0;
 }
+float maxData(Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    float   max;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    max=data[0];
+    for(i=1;i<np;i++)
+        max=(data[i]>max)?(data[i]):max;
+    printf("maxData: %f\n",max);
+    return max;
+}
+float meanData(Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    float   mean;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    mean=0;
+    for(i=0;i<np;i++)
+        mean+=data[i];
+    mean/=(float)np;
+    printf("meanData: %f\n",mean);
+    return mean;
+}
+float minData(Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    float   min;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    min=data[0];
+    for(i=1;i<np;i++)
+        min=(data[i]<min)?(data[i]):min;
+    printf("minData: %f\n",min);
+    return min;
+}
+float stdData(Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    float   s,ss,std;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    s=ss=0;
+    for(i=0;i<np;i++)
+    {
+        s+=data[i];
+        ss+=data[i]*data[i];
+    }
+    std=ss/(float)np+pow(s/(float)np,2);
+    printf("stdData: %f\n",std);
+    return std;
+}
 void normalise(Mesh *m)
 {
     int     *np=&(m->np);
@@ -2706,6 +2874,27 @@ int scale(float t, Mesh *m)
     for(i=0;i<*np;i++)
         p[i]=sca3D(p[i],t);
     
+    return 0;
+}
+int size(Mesh *m)
+{
+    int     np=m->np;
+    float3D *p=m->p;
+    float3D min,max;
+    int     i;
+    
+    min=max=p[0];
+    for(i=0;i<np;i++)
+    {
+        min.x=(p[i].x<min.x)?p[i].x:min.x;
+        min.y=(p[i].y<min.y)?p[i].y:min.y;
+        min.z=(p[i].z<min.z)?p[i].z:min.z;
+        max.x=(p[i].x>max.x)?p[i].x:max.x;
+        max.y=(p[i].y>max.y)?p[i].y:max.y;
+        max.z=(p[i].z>max.z)?p[i].z:max.z;
+    }
+    printf("size: %f,%f,%f\n",fabs(max.x-min.x),fabs(max.y-min.y),fabs(max.z-min.z));
+
     return 0;
 }
 int smooth(Mesh *m)
@@ -2876,6 +3065,70 @@ int normal(Mesh *m)
     
     return 0;
 }
+int subVal(float val,Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    for(i=0;i<np;i++)
+        data[i]-=val;    
+    return 0;
+}
+int addVal(float val,Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    for(i=0;i<np;i++)
+        data[i]+=val;
+    return 0;
+}
+int multVal(float val,Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    for(i=0;i<np;i++)
+        data[i]*=val;
+    return 0;
+}
+int divVal(float val,Mesh *m)
+{
+    int     np=m->np;
+    float   *data=m->data;
+    int     i;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: there is no data\n");
+        return 1;
+    }
+
+    for(i=0;i<np;i++)
+        data[i]/=val;
+    return 0;
+}
 void randverts(int nrv, Mesh *m)
 {
     // This function is meant to be used with qhull, like this:
@@ -3033,7 +3286,7 @@ void printHelp(void)
     -barycentricProjection reference_mesh            Print barycentric coordinates for each vertex in reference_mesh\n\
     -checkOrientation                                Check that normals point outside\n\
     -centre                                          Move the mesh's barycentre to the origin\n\
-    -countClusters                                   Count clusters in texture data\n\
+    -countClusters  value                            Count clusters in texture data\n\
     -curv                                            Compute curvature\n\
     -euler                                           Print Euler characteristic\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
@@ -3048,6 +3301,13 @@ void printHelp(void)
     -level level_value                               Adds new vertices (and triangles) to the\n\
                                                        edges that cross level_value in the\n\
                                                        vertex data (f.ex., mean curvature)\n\
+    -addVal                                          Add value data\n\
+    -subVal                                          Subtract value from data\n\
+    -multVal                                         Multiply data time value\n\
+    -divVal                                          Divide data by value\n\
+    -max                                             Maximum data value\n\
+    -mean                                            Mean data value\n\
+    -min                                             Minimum data value\n\
     -normal                                          Mesh normal vectors\n\
     -normalise                                       Place all vertices at distance 1 from\n\
                                                        the origin\n\
@@ -3061,7 +3321,7 @@ void printHelp(void)
     -scale scale_value                               Multiply each vertex by \"scale\"\n\
     -stereographic                                   Stereographic projection\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
-    -threshold                                       Threshold texture data\n\
+    -threshold value 0:down/1:up                     Threshold texture data\n\
     -tris                                            Display number of triangles\n\
     -v                                               Verbose mode\n\
     -verts                                           Display number of vertices\n\
@@ -3132,9 +3392,44 @@ int main(int argc, char *argv[])
             saveMesh(argv[++i],&mesh,oformat);
         }
         else
+        if(strcmp(argv[i],"-max")==0)
+        {
+            maxData(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-mean")==0)
+        {
+            meanData(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-min")==0)
+        {
+            minData(&mesh);
+        }
+        else
         if(strcmp(argv[i],"-odata")==0)
         {
             Text_save_data(argv[++i],&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-addVal")==0)
+        {
+            addVal(atof(argv[++i]),&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-subVal")==0)
+        {
+            subVal(atof(argv[++i]),&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-multVal")==0)
+        {
+            multVal(atof(argv[++i]),&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-divVal")==0)
+        {
+            divVal(atof(argv[++i]),&mesh);
         }
         else
         if(strcmp(argv[i],"-add")==0)
@@ -3304,6 +3599,11 @@ int main(int argc, char *argv[])
         {
             rotate(&mesh,atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]));
             i+=3;
+        }
+        else
+        if(strcmp(argv[i],"-size")==0)    // mesh dimensions
+        {
+            size(&mesh);
         }
         else
         if(strcmp(argv[i],"-stereographic")==0)    // stereographic projection
