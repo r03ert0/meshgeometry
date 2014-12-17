@@ -3,7 +3,8 @@
 //char version[]="meshgeometry, version 3, roberto toro, 1 May 2010";     // added -laplace and -taubinLM
 //char version[]="meshgeometry, version 4, roberto toro, 21 May 2010";    // commands are processed as a chain
 //char version[]="meshgeometry, version 5, roberto toro, 28 May 2012";    // added several commands: foldLength, volume, absgi, texture threshold, countClusters, and includes meshconvert v8
-char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // added randomverts, help, centre, normalise, normal, verbose, off mesh format (load and save), added to github
+//char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // added randomverts, help, centre, normalise, normal, verbose, off mesh format (load and save), added to github
+char version[]="meshgeometry, version 7, roberto toro, 17 Decembre 2014"; // vtk support
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1696,10 +1697,94 @@ int RawFloatData_save_data(char *path, Mesh *m)
     
     return 0;
 }
-int VTK_load(char *path, Mesh *m)
+int VTK_load_mesh(char *path, Mesh *m)
 {
-    printf("ERROR: VTK load is not implemented yet\n");
-    return 1;
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D **p=&(m->p);
+    int3D   **t=&(m->t);
+    FILE    *f;
+    int     ip,it,j,k,nval,x;
+    char    str[512],str1[256],str2[256];
+        
+    f=fopen(path,"r");
+    if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
+
+    // READ HEADER
+    *np=*nt=ip=it=0;
+    do
+    {
+        fgets(str,511,f);
+        sscanf(str," %s %i %*s ",str1,&x);
+
+        if(strcmp(str1,"POINTS")==0)
+        {
+            *np=x;
+            *p = (float3D*)calloc(*np,sizeof(float3D));
+        }
+        else
+        if(*np>0 && ip<*np)
+        {
+            j=0;
+            nval=0;            
+            do
+            {
+                while(str[j]==' '||str[j]=='\t')
+                    j++;
+                k=0;
+                while(str[j]!=' '&&str[j]!='\t'&&str[j]!='\r'&&str[j]!='\n')
+                {
+                    str2[k]=str[j];
+                    j++;
+                    k++;
+                }
+                str2[k]=(char)0;
+
+                if(nval==0)
+                    (*p)[ip].x=atof(str2);
+                else
+                if(nval==1)
+                    (*p)[ip].y=atof(str2);
+                else
+                if(nval==2)
+                    (*p)[ip].z=atof(str2);
+                nval++;
+                if(nval==3)
+                {
+                    nval=0;
+                    ip++;
+                }
+            }
+            while(str[j]!='\r'&&str[j]!='\n');
+        }
+        else
+        if(ip==*np && strcmp(str1,"POLYGONS")==0)
+        {
+            *nt=x;
+            *t = (int3D*)calloc(*nt,sizeof(int3D));
+        }
+        else
+        if(*nt>0 && it<*nt)
+        {
+            sscanf(str," 3 %i %i %i ",&((*t)[it].a),&((*t)[it].b),&((*t)[it].c));
+            it++;
+        }
+        else
+        if(*nt>0 && it==*nt)
+            break;
+    }
+    while(!feof(f));
+    fclose(f);
+    
+    printf("%f %f %f\n",(*p)[0].x,(*p)[0].y,(*p)[0].z);
+    printf("%f %f %f\n",(*p)[*np-1].x,(*p)[*np-1].y,(*p)[*np-1].z);
+    printf("%i %i %i\n",(*t)[0].a,(*t)[0].b,(*t)[0].c);
+    printf("%i %i %i\n",(*t)[*nt-1].a,(*t)[*nt-1].b,(*t)[*nt-1].c);
+
+    if(verbose)
+        printf("Read %i vertices and %i triangles\n",ip,it);
+
+    return 0;
 }
 int VTK_save_mesh(char *path, Mesh *m)
 {
@@ -1727,7 +1812,7 @@ int VTK_save_mesh(char *path, Mesh *m)
         fprintf(f,"%f %f %f ", p[i+1].x,p[i+1].y,p[i+1].z);
         fprintf(f,"%f %f %f\n",p[i+2].x,p[i+2].y,p[i+2].z);
     }
-    fprintf("\n");
+    fprintf(f,"\n");
     
     // WRITE TRIANGLES
     fprintf(f,"POLYGONS %i %i\n",*nt,*nt*4);
@@ -1805,7 +1890,7 @@ int loadMesh(char *path, Mesh *m,int iformat)
             err=Off_load(path,m);
             break;
         case kVTKMesh:
-            err=VTK_load(path,m);
+            err=VTK_load_mesh(path,m);
             break;
         default:
             printf("ERROR: Input mesh format not recognised\n");
@@ -1923,7 +2008,7 @@ int saveMesh(char *path, Mesh *m, int oformat)
             err=RawFloatData_save_data(path,m);
             break;
         case kVTKMesh:
-            err=VTK_save_data(path,m);
+            err=VTK_save_mesh(path,m);
             break;
         default:
             printf("ERROR: Output data format not recognised\n");
@@ -3392,7 +3477,7 @@ void printHelp(void)
     .float                                           Raw float data\n\
     .txt1                                            RT's data format\n\
     .bin                                             n-e-r-v-o-u-s system web binary mesh\n\
-    .wrl, .obj, .ply, .stl, .smesh, .off, .vtk       Miscellaneous mesh formats\n\
+    .wrl, .obj, .ply, .stl, .smesh, .off, .vtk       Other mesh formats\n\
 ");
 }
 int main(int argc, char *argv[])
