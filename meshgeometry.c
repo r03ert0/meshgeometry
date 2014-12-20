@@ -1775,11 +1775,6 @@ int VTK_load_mesh(char *path, Mesh *m)
     }
     while(!feof(f));
     fclose(f);
-    
-    printf("%f %f %f\n",(*p)[0].x,(*p)[0].y,(*p)[0].z);
-    printf("%f %f %f\n",(*p)[*np-1].x,(*p)[*np-1].y,(*p)[*np-1].z);
-    printf("%i %i %i\n",(*t)[0].a,(*t)[0].b,(*t)[0].c);
-    printf("%i %i %i\n",(*t)[*nt-1].a,(*t)[*nt-1].b,(*t)[*nt-1].c);
 
     if(verbose)
         printf("Read %i vertices and %i triangles\n",ip,it);
@@ -1806,11 +1801,11 @@ int VTK_save_mesh(char *path, Mesh *m)
 
     // WRITE VERTICES
     fprintf(f,"POINTS %i float\n",*np);
-    for(i=0;i<*np;i+=3)
+    for(i=0;i<*np;i++)
     {
-        fprintf(f,"%f %f %f ", p[i+0].x,p[i+0].y,p[i+0].z);
-        fprintf(f,"%f %f %f ", p[i+1].x,p[i+1].y,p[i+1].z);
-        fprintf(f,"%f %f %f\n",p[i+2].x,p[i+2].y,p[i+2].z);
+        fprintf(f,"%f %f %f ", p[i].x,p[i].y,p[i].z);
+        if(i%3==0)
+            fprintf(f,"\n");
     }
     fprintf(f,"\n");
     
