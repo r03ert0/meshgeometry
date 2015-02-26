@@ -3364,9 +3364,12 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     np_rm=rm.np;
     p_rm=rm.p;
     
-    tmp=(float3D*)calloc(np_rm,sizeof(float));
+    tmp=(float3D*)calloc(np_rm,sizeof(float3D));
     for(i=0;i<np_rm;i++)
     {
+        if(verbose)
+            if(i%1000==0)
+                printf("%i\n",i);
         for(j=0;j<nt;j++)
         {
             result=intersect_VectorTriangle(p_rm[i],j,&c0,&c1,&m1);
@@ -3456,6 +3459,7 @@ void printHelp(void)
                                                        and the topology of the argument mesh\n\
     -rotate x y z                                    Rotate with angles x, y and z\n\
     -scale scale_value                               Multiply each vertex by \"scale\"\n\
+    -size                                            Display mesh dimensions\n\
     -stereographic                                   Stereographic projection\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
     -threshold value 0:down/1:up                     Threshold texture data\n\
