@@ -4,7 +4,8 @@
 //char version[]="meshgeometry, version 4, roberto toro, 21 May 2010";    // commands are processed as a chain
 //char version[]="meshgeometry, version 5, roberto toro, 28 May 2012";    // added several commands: foldLength, volume, absgi, texture threshold, countClusters, and includes meshconvert v8
 //char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // added randomverts, help, centre, normalise, normal, verbose, off mesh format (load and save), added to github
-char version[]="meshgeometry, version 7, roberto toro, 17 Decembre 2014"; // vtk support
+//char version[]="meshgeometry, version 7, roberto toro, 17 Decembre 2014"; // vtk support
+char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 
 #include <stdio.h>
 #include <stdlib.h>
