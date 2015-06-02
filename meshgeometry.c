@@ -3135,6 +3135,48 @@ int smooth(Mesh *m)
     free(n);
     return 0;
 }
+int smoothData(Mesh *m,float l,int niter)
+{
+    if(verbose) printf("* smoothData lambda:%f N:%i\n",l,niter);
+    
+    int     np=m->np;
+    int     nt=m->nt;
+    int3D   *t=m->t;
+    float   *data=m->data;
+    float   *tmp;
+    int     *ntmp;
+    int     i,k;
+
+    ntmp=(int*)calloc(np,sizeof(int));
+    for(i=0;i<nt;i++)
+    {
+        ntmp[t[i].a]+=2;
+        ntmp[t[i].b]+=2;
+        ntmp[t[i].c]+=2;
+    }
+    
+    tmp=(float*)calloc(np,sizeof(float));
+    for(k=0;k<niter;k++)
+    {
+        for(i=0;i<nt;i++)
+        {
+            tmp[t[i].a]+=data[t[i].b]+data[t[i].c];
+            tmp[t[i].b]+=data[t[i].c]+data[t[i].a];
+            tmp[t[i].c]+=data[t[i].a]+data[t[i].b];
+        }
+        for(i=0;i<np;i++)
+            tmp[i]/=(float)ntmp[i];
+        for(i=0;i<np;i++)
+        {
+            data[i]=data[i]*(1-l)+tmp[i]*l;
+            tmp[i]=0;
+        }
+    }
+    free(tmp);
+    free(ntmp);
+    
+    return 0;
+}
 int stereographic(Mesh *m)
 {
     int     i,nt;
@@ -3537,6 +3579,7 @@ void printHelp(void)
     -size                                            Display mesh dimensions\n\
     -stereographic                                   Stereographic projection\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
+    -smoothData lambda number_of_iterations          Laplace smoothing of data, lambda=0 -> no smoothing, lambda=1 -> each vertex value to neighbour's average\n\
     -threshold value 0:down/1:up                     Threshold texture data\n\
     -tris                                            Display number of triangles\n\
     -v                                               Verbose mode\n\
@@ -3710,6 +3753,16 @@ int main(int argc, char *argv[])
             mu=atof(argv[++i]);
             N=atoi(argv[++i]);
             taubin(lambda,mu,N,&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-smoothData")==0)
+        {
+            int     N;
+            float   l;
+            
+            l=atof(argv[++i]);
+            N=atoi(argv[++i]);
+            smoothData(&mesh,l,N);
         }
         else
         if(strcmp(argv[i],"-euler")==0)
