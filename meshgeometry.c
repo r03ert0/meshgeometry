@@ -36,6 +36,7 @@ char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 #define kOffMesh            15
 #define kMGHData            16
 #define kVTKMesh            17
+#define kDPVData            18
 
 typedef struct
 {
@@ -298,7 +299,11 @@ void neighbours(Mesh *m)
 #pragma mark [ Format conversion ]
 int getformatindex(char *path)
 {
-    char    *formats[]={"orig","pial","white","mesh","sratio","float","curv","txt","inflated","sphere","sulc","reg","txt1","wrl","obj","ply","stl","smesh","off","bin","mgh","annot","raw","vtk"};
+    char    *formats[]={"orig","pial","white","mesh","sratio",
+                        "float","curv","txt","inflated","sphere",
+                        "sulc","reg","txt1","wrl","obj",
+                        "ply","stl","smesh","off","bin",
+                        "mgh","annot","raw","vtk","dpv"};
     int     i,n=24; // number of recognised formats
     int     found,index;
     char    *extension;
@@ -438,6 +443,13 @@ int getformatindex(char *path)
         index=kVTKMesh;
         if(verbose)
             printf("Format: VTK Mesh\n");
+    }
+    else
+    if(i==24)
+    {
+        index=kDPVData;
+        if(verbose)
+            printf("Format: DPV Data\n");
     }
         
     return index;
@@ -1819,6 +1831,41 @@ int VTK_save_mesh(char *path, Mesh *m)
     
     return 0;
 }
+int DPV_load_data(char *path, Mesh *m)
+{
+    FILE    *f;
+    char    str[255];
+    int     *np=&(m->np);
+    float   **data=&(m->data);
+    int     i,n;
+
+    if(verbose)
+        printf("* DPV_load_data\n");
+
+    f=fopen(path,"r");
+    if(f==NULL)
+        return 1;
+
+    n=0;
+    while(!feof(f))
+    {
+        fgets(str,255,f);
+        n++;
+    }
+    fclose(f);
+    
+    f=fopen(path,"r");
+    *np=n;
+    *data=(float*)calloc(*np,sizeof(float));
+    for(i=0;i<*np;i++)
+    {
+        fgets(str,255,f);
+        sscanf(str," %*i %*f %*f %*f %f ",&((*data)[i]));
+    }
+    fclose(f);
+    
+    return 0;
+}
 
 #pragma mark -
 int freeMesh(Mesh *m)
@@ -1887,6 +1934,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
             break;
         case kVTKMesh:
             err=VTK_load_mesh(path,m);
+            break;
+        case kDPVData:
+            err=DPV_load_data(path,m);
             break;
         default:
             printf("ERROR: Input mesh format not recognised\n");
@@ -2048,6 +2098,29 @@ float area(Mesh *m)
     printf("area: %f\n",area);
     
     return area;
+}
+int areaMap(float *C, Mesh *m)
+{
+/*
+    Computes a vector with the area around each vertex.
+    The area of each triangle is distributed among its
+    three vertices.
+*/
+    if(verbose) printf("* areaMap\n");
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    int     i;
+    float   a;
+
+    for(i=0;i<*nt;i++)
+    {
+        a=triangle_area(p[t[i].a],p[t[i].b],p[t[i].c]);
+        C[t[i].a]+=a/3;
+        C[t[i].b]+=a/3;
+        C[t[i].c]+=a/3;
+    }    
+    return 0;
 }
 int average(int N, char *paths[], Mesh *m)
 {
@@ -3422,6 +3495,7 @@ void printHelp(void)
     -absgi                                           Compute absolute gyrification index\n\
     -add filename                                    Add mesh at filename to the current mesh\n\
     -area                                            Surface area\n\
+    -areaMap                                         Compute surface area per vertex\n\
     -average n_meshes path1 path2 ... pathn          Compute an average of n_meshes all\n\
                                                        of the same topology\n\
     -barycentricProjection reference_mesh            Print barycentric coordinates for each vertex in reference_mesh\n\
@@ -3577,6 +3651,13 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-add")==0)
         {
             addMesh(argv[++i],&mesh,iformat);
+        }
+        else
+        if(strcmp(argv[i],"-areaMap")==0)
+        {
+            if(mesh.data==NULL)
+                mesh.data=(float*)calloc(mesh.np,sizeof(float));
+            areaMap(mesh.data,&mesh);
         }
         else
         if(strcmp(argv[i],"-relax")==0)
