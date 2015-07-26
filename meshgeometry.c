@@ -7,12 +7,42 @@
 //char version[]="meshgeometry, version 7, roberto toro, 17 Decembre 2014"; // vtk support
 char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 
+/*
+    To use:
+    
+    ./meshgeometry_mac -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.inflated -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.curv -drawSurface bert.tif lat
+
+    To compile:
+    
+    On Mac OS X:
+    gcc -Wall meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
+
+    On Unix:
+    gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut
+
+    On Windows:
+    gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
 #include <unistd.h>
+
+// OpenGL libraries
+#define __MacOSX__
+//#define __UnixOrWindows__
+#ifdef __MacOSX__
+  #include <OpenGL/gl.h>
+  #include <OpenGL/glu.h>
+  #include <GLUT/glut.h>
+#endif
+#ifdef __UnixOrWindows__
+  #include <GL/gl.h>
+  #include <GL/glut.h>
+#endif
 
 #define pi 3.14159265358979323846264338327950288419716939927510
 #define EPSILON  0.000001 // small enough to avoid division overflow
@@ -71,6 +101,8 @@ float area(Mesh *m);
 float volume(Mesh *m);
 int smooth(Mesh *m);
 int taubin(float lambda, float mu, int N, Mesh *m);
+float minData(Mesh *m);
+float maxData(Mesh *m);
 
 Mesh    mesh;
 float   R;
@@ -2071,6 +2103,130 @@ int saveMesh(char *path, Mesh *m, int oformat)
 }
 
 #pragma mark -
+#pragma mark [ Save TIFF ]
+void WriteHexString(FILE *f, char *str)
+{
+	int		i,j,len=strlen(str);
+	int		a;
+	short	b;
+	char	c[5];
+	
+	for(i=0;i<len;i+=4)
+	{
+		for(j=0;j<4;j++)
+			c[j]=str[i+j];
+		c[4]=(char)0;
+		sscanf(c,"%x",&a);
+		b=(short)a;
+		fwrite(&((char*)&b)[1],1,1,f);
+		fwrite(&((char*)&b)[0],1,1,f);
+	}
+}
+void writeTIFF(char *path, char *addr, int nx, int ny)
+{
+	FILE	*fptr;
+	int		offset;
+	int		i,j;
+	char	red,green,blue;
+	
+	fptr=fopen(path,"w");
+	
+	/* Write the header */
+	WriteHexString(fptr,"4d4d002a");    /* Little endian & TIFF identifier */
+	offset = nx * ny * 3 + 8;
+	putc((offset & 0xff000000) / 16777216,fptr);
+	putc((offset & 0x00ff0000) / 65536,fptr);
+	putc((offset & 0x0000ff00) / 256,fptr);
+	putc((offset & 0x000000ff),fptr);
+
+	/* Write the binary data */
+	for (j=0;j<ny;j++) {
+	  for (i=0;i<nx;i++) {
+	
+		 red=addr[4*(j*nx+i)+0];
+		 green=addr[4*(j*nx+i)+1];
+		 blue=addr[4*(j*nx+i)+2];
+		 
+		 fputc(red,fptr);
+		 fputc(green,fptr);
+		 fputc(blue,fptr);
+	  }
+	}
+   
+	WriteHexString(fptr,"000e");  						/* Write the footer */ /* The number of directory entries (14) */
+	WriteHexString(fptr,"0100000300000001");			/* Width tag, short int */
+	fputc((nx & 0xff00) / 256,fptr);    /* Image width */
+	fputc((nx & 0x00ff),fptr);
+	WriteHexString(fptr,"0000");
+	WriteHexString(fptr,"0101000300000001");			/* Height tag, short int */
+	fputc((ny & 0xff00) / 256,fptr);    /* Image height */
+	fputc((ny & 0x00ff),fptr);
+	WriteHexString(fptr,"0000");
+	WriteHexString(fptr,"0102000300000003");			/* Bits per sample tag, short int */
+	offset = nx * ny * 3 + 182;
+	putc((offset & 0xff000000) / 16777216,fptr);
+	putc((offset & 0x00ff0000) / 65536,fptr);
+	putc((offset & 0x0000ff00) / 256,fptr);
+	putc((offset & 0x000000ff),fptr);
+	WriteHexString(fptr,"010300030000000100010000");	/* Compression flag, short int */
+	WriteHexString(fptr,"010600030000000100020000");	/* Photometric interpolation tag, short int */
+	WriteHexString(fptr,"011100040000000100000008");	/* Strip offset tag, long int */
+	WriteHexString(fptr,"011200030000000100010000");	/* Orientation flag, short int */
+	WriteHexString(fptr,"011500030000000100030000");	/* Sample per pixel tag, short int */
+	WriteHexString(fptr,"0116000300000001");			/* Rows per strip tag, short int */
+	fputc((ny & 0xff00) / 256,fptr);
+	fputc((ny & 0x00ff),fptr);
+	WriteHexString(fptr,"0000");
+	WriteHexString(fptr,"0117000400000001");			/* Strip byte count flag, long int */
+	offset = nx * ny * 3;
+	putc((offset & 0xff000000) / 16777216,fptr);
+	putc((offset & 0x00ff0000) / 65536,fptr);
+	putc((offset & 0x0000ff00) / 256,fptr);
+	putc((offset & 0x000000ff),fptr);
+	WriteHexString(fptr,"0118000300000003");			/* Minimum sample value flag, short int */
+	offset = nx * ny * 3 + 188;
+	putc((offset & 0xff000000) / 16777216,fptr);
+	putc((offset & 0x00ff0000) / 65536,fptr);
+	putc((offset & 0x0000ff00) / 256,fptr);
+	putc((offset & 0x000000ff),fptr);
+	WriteHexString(fptr,"0119000300000003");			/* Maximum sample value tag, short int */
+	offset = nx * ny * 3 + 194;
+	putc((offset & 0xff000000) / 16777216,fptr);
+	putc((offset & 0x00ff0000) / 65536,fptr);
+	putc((offset & 0x0000ff00) / 256,fptr);
+	putc((offset & 0x000000ff),fptr);
+	WriteHexString(fptr,"011c00030000000100010000");	/* Planar configuration tag, short int */
+	WriteHexString(fptr,"0153000300000003");			/* Sample format tag, short int */
+	offset = nx * ny * 3 + 200;
+	putc((offset & 0xff000000) / 16777216,fptr);
+	putc((offset & 0x00ff0000) / 65536,fptr);
+	putc((offset & 0x0000ff00) / 256,fptr);
+	putc((offset & 0x000000ff),fptr);
+	WriteHexString(fptr,"00000000");					/* End of the directory entry */
+	WriteHexString(fptr,"000800080008");				/* Bits for each colour channel */
+	WriteHexString(fptr,"000000000000");				/* Minimum value for each component */
+	WriteHexString(fptr,"00ff00ff00ff");				/* Maximum value per channel */
+	WriteHexString(fptr,"000100010001");				/* Samples per pixel for each channel */
+	fclose(fptr);
+}
+// plot long rainbow RGB from https://www.particleincell.com/2014/colormap/
+int rainbow(float val, float *r, float *g, float *b)
+{
+    float   a=(1-val)/0.2;	//invert and group
+    int     X=floor(a);	//this is the integer part
+    float   Y=(a-X); //fractional part from 0 to 255
+    switch(X)
+    {
+        case 0: *r=1;*g=Y;*b=0;break;
+        case 1: *r=1-Y;*g=1;*b=0;break;
+        case 2: *r=0;*g=1;*b=Y;break;
+        case 3: *r=0;*g=1-Y;*b=1;break;
+        case 4: *r=Y;*g=0;*b=1;break;
+        case 5: *r=1;*g=0;*b=1;break;
+    }
+    return 1;
+}
+#pragma mark -
 #pragma mark [ Geometry functions ]
 void absgi(Mesh *m)
 {
@@ -2458,6 +2614,147 @@ int curvature_exact(float *C, Mesh *m)
     */
     
     return 0;
+}
+void depth(float *C, Mesh *m)
+{
+	int			i;
+    float		n,max;
+	float3D		ce={0,0,0},ide,siz;
+	int         np=m->np;
+	float3D     *p=m->p;
+	
+	// compute sulcal depth
+	for(i=0;i<np;i++)
+	{
+		ce=(float3D){ce.x+p[i].x,ce.y+p[i].y,ce.z+p[i].z};
+		
+		if(i==0) ide=siz=p[i];
+		
+		if(ide.x<p[i].x) ide.x=p[i].x;
+		if(ide.y<p[i].y) ide.y=p[i].y;
+		if(ide.z<p[i].z) ide.z=p[i].z;
+		
+		if(siz.x>p[i].x) siz.x=p[i].x;
+		if(siz.y>p[i].y) siz.y=p[i].y;
+		if(siz.z>p[i].z) siz.z=p[i].z;
+	}
+	ce=(float3D){ce.x/(float)np,ce.y/(float)np,ce.z/(float)np};
+
+	max=0;
+    for(i=0;i<np;i++)
+    {
+        n=	pow(2*(p[i].x-ce.x)/(ide.x-siz.x),2) +
+			pow(2*(p[i].y-ce.y)/(ide.y-siz.y),2) +
+			pow(2*(p[i].z-ce.z)/(ide.z-siz.z),2);
+
+        C[i] = sqrt(n);
+        if(C[i]>max)	max=C[i];
+    }
+    max*=1.05;	// pure white is not nice...
+    for(i=0;i<np;i++)
+        C[i]=C[i]/max;
+}
+int drawSurface(Mesh *m,char *tiff_path)
+{
+    int		i;
+	char	*addr;      // memory for tiff image
+	int     width=512;  // tiff width
+	int     height=512; // tiff height
+    float	zoom=1/2.0;
+	float3D	a,b,c;
+	float3D back={0xff,0xff,0xff};  // background colour
+	int     toonFlag=0;
+    int     np=m->np;
+    int     nt=m->nt;
+    int3D   *t=m->t;
+    float3D *p=m->p;
+    float   *data=m->data;
+    float   R,G,B;
+    float3D *color;
+    int argc = 1;
+    char *argv[1] = {(char*)"Something"};
+    float   min,max,val;
+    
+    // configure data
+    min=minData(m);
+    max=maxData(m);
+    if(min==max)
+    {
+        printf("Error: min and max values are the same\n");
+        return 0;
+    }
+    color=(float3D*)calloc(np,sizeof(float3D));
+    for(i=0;i<np;i++)
+    {
+        val=(data[i]-min)/(max-min);
+        rainbow(val,&R,&G,&B);
+        color[i]=(float3D){R,G,B};
+    }
+    
+    // draw
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+    glutInitWindowSize(width,height);
+    glutCreateWindow("meshgeometry");
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_SMOOTH);
+    glClearColor(back.x,back.y,back.z,1);
+
+    // init projection
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT+GL_STENCIL_BUFFER_BIT);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(zoom*width/2,-zoom*width/2,-zoom*height/2,zoom*height/2, -100000.0, 100000.0);
+
+    // prepare drawing
+        glMatrixMode (GL_MODELVIEW);
+        glLoadIdentity();
+        gluLookAt (0,0,-10, 0,0,0, 0,1,0); // eye,center,updir
+
+    // draw
+        glEnableClientState(GL_VERTEX_ARRAY);
+		glVertexPointer(3,GL_FLOAT,0,(GLfloat*)p);
+        glEnableClientState(GL_COLOR_ARRAY);
+        glColorPointer(3,GL_FLOAT,0,(GLfloat*)color);
+        glDrawElements(GL_TRIANGLES,nt*3,GL_UNSIGNED_INT,(GLuint*)t);
+
+	// toon shading
+		if(toonFlag)
+		{
+			glEnable( GL_CULL_FACE );
+			glPolygonMode( GL_BACK, GL_FILL );
+			glCullFace( GL_FRONT );
+
+			glPolygonMode(GL_FRONT, GL_LINE);
+			glLineWidth(3.0);
+			glCullFace(GL_BACK);
+			glDepthFunc(GL_LESS);
+			glColor3f(0,0,0);
+			glBegin(GL_TRIANGLES);
+			for(i=0;i<nt;i++)
+			{
+				a=p[t[i].a];
+				b=p[t[i].b];
+				c=p[t[i].c];
+				
+				glVertex3fv((float*)&a);
+				glVertex3fv((float*)&b);
+				glVertex3fv((float*)&c);
+			}
+			glEnd();
+			glDisable( GL_CULL_FACE );
+		}
+	
+	// Write image in TIFF format
+	addr=(char*)calloc(width*height,sizeof(char)*4);
+    glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,addr);
+	writeTIFF(tiff_path,addr,width,height);
+	
+	free(color);
+	free(addr);
+	
+	return 0;
 }
 int fixflip(Mesh *m)
 {
@@ -3528,8 +3825,8 @@ void printHelp(void)
 {
      printf("\
  Commands\n\
-    -iformat format name                             Force input format (needs to precede imesh)\n\
-    -oformat format name                             Force output format (needs to precede omesh)\n\
+    -iformat format_name                             Force input format (needs to precede imesh)\n\
+    -oformat format_name                             Force output format (needs to precede omesh)\n\
     -i filename                                      Input file (also accepts -imesh)\n\
     -o filename                                      Output file (also accepts -omesh)\n\
     -odata filename                                  Output data\n\
@@ -3545,6 +3842,8 @@ void printHelp(void)
     -centre                                          Move the mesh's barycentre to the origin\n\
     -countClusters  value                            Count clusters in texture data\n\
     -curv                                            Compute curvature\n\
+    -depth                                           Compute sulcal depth\n\
+    -drawSurface path orientation                    draw surface in tiff format, orientation is 'lat' or 'med'\n\
     -euler                                           Print Euler characteristic\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
     -fixSmall                                        Detect triangles with an angle >160\n\
@@ -3726,6 +4025,13 @@ int main(int argc, char *argv[])
             curvature(mesh.data,&mesh);
         }
         else
+        if(strcmp(argv[i],"-depth")==0)
+        {
+            if(mesh.data==NULL)
+                mesh.data=(float*)calloc(mesh.np,sizeof(float));
+            depth(mesh.data,&mesh);
+        }
+        else
         if(strcmp(argv[i],"-icurv")==0)
         {
             if(mesh.data==NULL)
@@ -3837,6 +4143,12 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-centre")==0)
         {
             centre(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-drawSurface")==0)
+        {
+            char   *tiff_path=argv[++i];
+            drawSurface(&mesh,tiff_path);
         }
         else
         if(strcmp(argv[i],"-normalise")==0)
