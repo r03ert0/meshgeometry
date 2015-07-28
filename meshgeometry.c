@@ -104,6 +104,8 @@ int taubin(float lambda, float mu, int N, Mesh *m);
 float minData(Mesh *m);
 float maxData(Mesh *m);
 
+int g_gluInitFlag=0;
+
 Mesh    mesh;
 float   R;
 int     verbose=0;
@@ -2210,6 +2212,13 @@ void writeTIFF(char *path, char *addr, int nx, int ny)
 	fclose(fptr);
 }
 // plot long rainbow RGB from https://www.particleincell.com/2014/colormap/
+int greyscale(float val, float *r, float *g, float *b)
+{
+    *r=val;
+    *g=val;
+    *b=val;
+    return 1;
+}
 int rainbow(float val, float *r, float *g, float *b)
 {
     float   a=(1-val)/0.2;	//invert and group
@@ -2679,7 +2688,7 @@ void depth(float *C, Mesh *m)
     for(i=0;i<np;i++)
         C[i]=C[i]/max;
 }
-int drawSurface(Mesh *m,char *tiff_path)
+int drawSurface(Mesh *m,char *cmap,char *tiff_path)
 {
     int		i;
 	char	*addr;      // memory for tiff image
@@ -2712,13 +2721,26 @@ int drawSurface(Mesh *m,char *tiff_path)
     for(i=0;i<np;i++)
     {
         val=(data[i]-min)/(max-min);
-        rainbow(val,&R,&G,&B);
+        if(strcmp(cmap,"rainbow")==0)
+            rainbow(val,&R,&G,&B);
+        else
+        if(strcmp(cmap,"grey")==0)
+            greyscale(val,&R,&G,&B);
+        else
+        {
+            printf("ERROR: Unknown colour map %s\n",cmap);
+            return 0;
+        }
         color[i]=(float3D){R,G,B};
     }
     
     // draw
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+    if(g_gluInitFlag==0)
+    {
+        glutInit(&argc, argv);
+        glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+        g_gluInitFlag=1;
+    }
     glutInitWindowSize(width,height);
     glutCreateWindow("meshgeometry");
     glEnable(GL_DEPTH_TEST);
@@ -3962,7 +3984,7 @@ void printHelp(void)
     -countClusters  value                            Count clusters in texture data\n\
     -curv                                            Compute curvature\n\
     -depth                                           Compute sulcal depth\n\
-    -drawSurface path orientation                    draw surface in tiff format, orientation is 'lat' or 'med'\n\
+    -drawSurface colourmap path                      draw surface in tiff format, colourmap is 'grey' or 'rainbow'\n\
     -euler                                           Print Euler characteristic\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
     -fixSmall                                        Detect triangles with an angle >160\n\
@@ -4275,8 +4297,9 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-drawSurface")==0)
         {
+            char   *cmap=argv[++i];
             char   *tiff_path=argv[++i];
-            drawSurface(&mesh,tiff_path);
+            drawSurface(&mesh,cmap,tiff_path);
         }
         else
         if(strcmp(argv[i],"-normalise")==0)
