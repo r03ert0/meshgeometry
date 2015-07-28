@@ -40,6 +40,7 @@ Geometry commands                                |Description
 -subVal                                          |Subtract value from data
 -multVal                                         |Multiply data time value
 -divVal                                          |Divide data by value
+-clip min max                                    |Clip data values to the interval [min,max]\n\
 -max                                             |Maximum data value
 -mean                                            |Mean data value
 -min                                             |Minimum data value
@@ -48,10 +49,11 @@ Geometry commands                                |Description
 -randverts number_of_vertices                    |Generate homogeneously distributedrandom vertices over the mesh
 -relax filename                                  |Relax current mesh to mesh at filename (both meshes have the same topology)
 -resample smooth_mesh reference_mesh             |Resample the mesh to match the vertices and the topology of the argument mesh
--rotate x y z                                    |Rotate with angles x, y and z
+-rotate x y z                                    |Rotate with angles x, y and z (in degrees)
 -scale scale_value                               |Multiply each vertex by 'scale'
 -size                                            |Display mesh dimensions
 -stereographic                                   |Stereographic projection
+-subdivide                                       |Subdivide the mesh with one iteration of Kobbelt's sqrt(3) algorithm
 -taubinSmooth lambda mu number_of_iterations     |Taubin Smoothing
 -smoothData lambda number_of_iterations          |Laplace smoothing of data, lambda=0 -> no smoothing, lambda=1 -> each vertex value to neighbour's average
 -threshold value 0:down/1:up                     |Threshold texture data
