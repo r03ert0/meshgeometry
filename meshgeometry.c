@@ -2239,7 +2239,7 @@ void absgi(Mesh *m)
     // absGI        = Sx/(Vx^(2/3)(36π)^(1/3))
     logAbsGI=log(S)-2*log(V)/3.0-log(36*pi)/3.0;
     
-    printf("S=%f, V=%f, gi=%f, log(gi)=%f\n",S,V,exp(logAbsGI),logAbsGI);
+    printf("absgi: %f\n",exp(logAbsGI));
 }
 float area(Mesh *m)
 {
@@ -2375,7 +2375,7 @@ int barycentricProjection(char *path_rm, Mesh *m)
                     imin=k;
                 }
             }
-            printf("closest vertex %i (%f,%f,%f), dist=%f\n",imin,p[imin].x,p[imin].y,p[imin].z,dmin);
+            printf("closest vertex %i (%f,%f,%f), dist: %f\n",imin,p[imin].x,p[imin].y,p[imin].z,dmin);
 
             result=intersect_VectorTriangle(p_rm[i],1984,&c0,&c1,m);
             printf(">> t[1984] c0,c1: %f, %f\n",c0,c1);
@@ -2423,6 +2423,31 @@ void checkOrientation(Mesh *m)
     
     printf("orientation: %c\n",(flipTest>0)?'+':'-');
 
+}
+int clip(Mesh *m, float min, float max)
+{
+    float   *data=m->data;
+    int     i;
+    int     np=m->np;
+    
+    if(data==NULL)
+    {
+        printf("ERROR: In clip, no data available\n");
+        return 0;
+    }
+    
+    if(verbose) 
+        printf("clipping to [%f,%f]\n",min,max);
+        
+    for(i=0;i<np;i++)
+    {
+        if(data[i]>max)
+            data[i]=max;
+        if(data[i]<min)
+            data[i]=min;
+    }
+    
+    return 1;
 }
 double  sum;
 int     *tmark,icmax,ncverts;
@@ -2610,7 +2635,7 @@ int curvature_exact(float *C, Mesh *m)
         min=(C[i]<min)?C[i]:min;
         max=(C[i]>max)?C[i]:max;
     }
-    printf("min,max=%f,%f\n",min,max);
+    printf("min,max: %f,%f\n",min,max);
     */
     
     return 0;
@@ -2660,7 +2685,7 @@ int drawSurface(Mesh *m,char *tiff_path)
 	char	*addr;      // memory for tiff image
 	int     width=512;  // tiff width
 	int     height=512; // tiff height
-    float	zoom=1/2.0;
+    float	zoom=1/4.0;
 	float3D	a,b,c;
 	float3D back={0xff,0xff,0xff};  // background colour
 	int     toonFlag=0;
@@ -2671,8 +2696,8 @@ int drawSurface(Mesh *m,char *tiff_path)
     float   *data=m->data;
     float   R,G,B;
     float3D *color;
-    int argc = 1;
-    char *argv[1] = {(char*)"Something"};
+    int     argc = 1;
+    char    *argv[1] = {(char*)"Something"};
     float   min,max,val;
     
     // configure data
@@ -2680,7 +2705,7 @@ int drawSurface(Mesh *m,char *tiff_path)
     max=maxData(m);
     if(min==max)
     {
-        printf("Error: min and max values are the same\n");
+        printf("ERROR: In drawSurface, min and max values are the same\n");
         return 0;
     }
     color=(float3D*)calloc(np,sizeof(float3D));
@@ -3334,24 +3359,16 @@ int relaxMesh(char *path, Mesh *m0,int iformat)
 }
 int rotate(Mesh *m, float x, float y, float z)
 {
-    printf("rotate %f %f %f\n",x,y,z);
+    if(verbose)
+        printf("rotate %f %f %f\n",x,y,z);
     int i;
     float   M[9];
     float3D *p=m->p,pp;
     
-   /*
-    M[0]=cos(z)*cos(y)*cos(x)-sin(z)*sin(x);
-    M[1]=cos(z)*cos(y)*sin(x)+sin(z)*cos(x);
-    M[2]=-cos(z)*sin(y);
+    x*=pi/180.0;
+    y*=pi/180.0;
+    z*=pi/180.0;
     
-    M[3]=-sin(z)*cos(y)*cos(x)-cos(z)*sin(x);
-    M[4]=-sin(z)*cos(y)*sin(x)+cos(z)*cos(x);
-    M[5]=sin(z)*sin(y);
-    
-    M[6]=sin(y)*cos(x);
-    M[7]=sin(y)*sin(x);
-    M[8]=cos(y);
-    */
     M[0]=cos(z)*cos(y);
     M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
     M[2]=sin(z)*sin(x)+cos(z)*sin(y)*cos(x);
@@ -3480,41 +3497,16 @@ int stereographic(Mesh *m)
     float3D *p=m->p;
     int3D   *t=m->t;
     int3D   *t1;    
-    float	x,y,z,n;
-    float	h,v,delta;
-    float   min,max;
-    
-    // find max and min height
-    for(i=0;i<m->np;i++)
-    {    
-        n=sqrt(p[i].x*p[i].x+p[i].y*p[i].y+p[i].z*p[i].z);
-        if(i==0)
-            min=max=n;
-        if(n<min)
-            min=n;
-        if(n>max)
-            max=n;
-    }   
-    
-    // universal polar stereographic projection 
-    for(i=0;i<m->np;i++)
-    {    
-        n=sqrt(p[i].x*p[i].x+p[i].y*p[i].y+p[i].z*p[i].z);
-        x = acos(p[i].x/n);
-        y = acos(p[i].y/n);
-        z = acos(p[i].z/n);
+    float	a,b;
 
-        if(z*z<0.000001)	delta=1;
-        else		        delta = cos(y)/sin(z);
-        if(delta<-1) delta=-1;
-        if(delta>1) delta=1;
     
-        h = z*sin(acos(delta));
-        v = z*delta;
-        if(x>pi/2.0)
-            p[i]=(float3D){-h,v,(max-min)?((n-min)/(max-min)):0};
-        else
-            p[i]=(float3D){ h,v,(max-min)?((n-min)/(max-min)):0};
+    for(i=0;i<m->np;i++)
+    {    
+        a=atan2(p[i].y,p[i].x);
+        b=acos(p[i].z/norm3D(p[i]));
+        p[i].x=b*cos(a);
+        p[i].y=b*sin(a);
+        p[i].z=0;
     }
     
     // delete triangles close to the border
@@ -3522,15 +3514,142 @@ int stereographic(Mesh *m)
     nt=0;
     for(i=0;i<m->nt;i++)
     {
-        if( norm3D(sub3D(p[t[i].a],p[t[i].b]))<pi/4.0 &&
-            norm3D(sub3D(p[t[i].b],p[t[i].c]))<pi/4.0 &&
-            norm3D(sub3D(p[t[i].c],p[t[i].a]))<pi/4.0)
+        if( norm3D(sub3D(p[t[i].a],p[t[i].b]))<1.5 &&
+            norm3D(sub3D(p[t[i].b],p[t[i].c]))<1.5 &&
+            norm3D(sub3D(p[t[i].c],p[t[i].a]))<1.5)
             t1[nt++]=t[i];
     }
+    free(m->t);
     m->t=t1;
     m->nt=nt;
     printf("new nt: %i\n",nt);
+    
     return 0;
+}
+int subdivide(Mesh *m)
+{
+    int     np=m->np;
+    int     nt=m->nt;
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *newp;
+    int3D   *newt;
+    int     newnp=np+nt;
+    int     newnt=nt*3;
+    int     i,j,k,found,*tt;
+    int     p1,p2,s;
+    int     i1,j1,i2,j2;
+    NTriRec *T,*I;
+    float3D x;
+    float3D *sump;
+    int     *n;
+    float   beta;
+    
+    sump=(float3D*)calloc(np,sizeof(float3D));
+    n=(int*)calloc(np,sizeof(int));
+
+    // allocate memory for new face barycentre vertices
+    newp=(float3D*)calloc(newnp,sizeof(float3D));
+
+    // add new face vertices
+    for(i=0;i<nt;i++)
+    {
+        x=add3D(p[t[i].a],add3D(p[t[i].b],p[t[i].c]));
+        x=sca3D(x,1/3.0);
+        newp[np+i]=x;
+        
+        sump[t[i].a]=add3D(sump[t[i].a],x);
+        sump[t[i].b]=add3D(sump[t[i].b],x);
+        sump[t[i].c]=add3D(sump[t[i].c],x);
+        n[t[i].a]++;
+        n[t[i].b]++;
+        n[t[i].c]++;
+    }
+    
+    // update triangles
+    newt=(int3D*)calloc(newnt,sizeof(int3D));
+    for(i=0;i<nt;i++)
+    {
+        newt[i]=(int3D){t[i].a,t[i].b,np+i};
+        newt[nt+i]=(int3D){t[i].b,t[i].c,np+i};
+        newt[2*nt+i]=(int3D){t[i].c,t[i].a,np+i};
+    }
+    
+    // flip old edges
+    T=(NTriRec*)calloc(np,sizeof(NTriRec));
+    I=(NTriRec*)calloc(np,sizeof(NTriRec));
+    for(i=0;i<nt;i++)
+    for(j=0;j<3;j++)
+    {
+        p1=((int*)&(t[i].a))[j];
+        p2=((int*)&(t[i].a))[(j+1)%3];
+        if(p1>p2)
+        {
+            s=p1;
+            p1=p2;
+            p2=s;
+        }
+        found=0;
+        for(k=0;k<T[p1].n;k++) {
+            tt=(int*)&(t[T[p1].t[k]]);
+            // check whether the edge is already present
+            // (either inverted or non inverted)
+            if(tt[I[p1].t[k]]==p2 || tt[(I[p1].t[k]+1)%3]==p2)
+            {
+                found=1;
+                break;
+            }
+        }
+        if(found==1)
+        {
+            // all edge data found, that is:
+            // index of triangle i1=i, index of starting vertex of the edge
+            // within triangle i1, j1=j
+            i1=i;
+            j1=j;
+            // same for triangle i2=T[p1].t[k], index j2=I[p1].t[k]
+            i2=T[p1].t[k];
+            j2=I[p1].t[k];
+            // the edge can be processed
+            // (eventually removed from T and I, to shorten future searches)
+            // to each old tri t correspond 3 new tris newt[0*nt+i], newt[1*nt+i] and newt[2*nt+i]
+            // the 1st tri affected is t1=newt[j1*nt+i1],
+            // the 2nd is t2=newt[j2*nt+i2]
+            // the first has to be changed to
+            newt[j1*nt+i1].b=np+i2; // np+i2 is the new vertex added inside triangle i2
+            newt[j1*nt+i1].c=np+i1;
+            // the second to
+            newt[j2*nt+i2].b=np+i1;
+            newt[j2*nt+i2].c=np+i2;
+        }
+        else
+        {
+            // 1st reference to edge, store data
+            T[p1].t[T[p1].n++]=i;
+            I[p1].t[I[p1].n++]=j;
+        }
+    }
+    free(T);
+    free(I);
+    
+    // update position of old vertices
+    for(i=0;i<np;i++)
+    {
+        // beta=(4-2cos(2pi/n))/(9n)
+        beta=(4-2*cos(2*pi/n[i]))/(9*n[i]);
+        
+        // p(k+1)=(1-n*beta)p(k) + beta*sum(neighbours)
+        newp[i]=add3D(sca3D(p[i],1-n[i]*beta),sca3D(sump[i],beta));
+    }
+    free(sump);
+    free(n);
+    
+    m->np=newnp;
+    m->nt=newnt;
+    m->p=newp;
+    m->t=newt;
+    
+    return 1;
 }
 int taubin(float lambda, float mu, int N, Mesh *m)
 {
@@ -3861,7 +3980,8 @@ void printHelp(void)
     -subVal                                          Subtract value from data\n\
     -multVal                                         Multiply data time value\n\
     -divVal                                          Divide data by value\n\
-    -max                                             Maximum data value\n\
+    -divVal                                          Divide data by value\n\
+    -clip min max                                    Clip data values to the interval [min,max]\n\
     -mean                                            Mean data value\n\
     -min                                             Minimum data value\n\
     -normal                                          Mesh normal vectors\n\
@@ -3873,10 +3993,11 @@ void printHelp(void)
                                                         (both meshes have the same topology)\n\
     -resample smooth_mesh reference_mesh             Resample the mesh to match the vertices\n\
                                                        and the topology of the argument mesh\n\
-    -rotate x y z                                    Rotate with angles x, y and z\n\
+    -rotate x y z                                    Rotate with angles x, y and z in degrees\n\
     -scale scale_value                               Multiply each vertex by \"scale\"\n\
     -size                                            Display mesh dimensions\n\
     -stereographic                                   Stereographic projection\n\
+    -subdivide                                       Subdivide the mesh using 1 iteration of Kobbelt's sqrt(3) algorithm\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
     -smoothData lambda number_of_iterations          Laplace smoothing of data, lambda=0 -> no smoothing, lambda=1 -> each vertex value to neighbour's average\n\
     -threshold value 0:down/1:up                     Threshold texture data\n\
@@ -3990,6 +4111,13 @@ int main(int argc, char *argv[])
             divVal(atof(argv[++i]),&mesh);
         }
         else
+        if(strcmp(argv[i],"-clip")==0)
+        {
+            float min=atof(argv[++i]);
+            float max=atof(argv[++i]);
+            clip(&mesh,min,max);
+        }
+        else
         if(strcmp(argv[i],"-add")==0)
         {
             addMesh(argv[++i],&mesh,iformat);
@@ -4073,7 +4201,7 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-euler")==0)
         {
-            printf("euler=%i\n",mesh.np-mesh.nt/2);
+            printf("euler: %i\n",mesh.np-mesh.nt/2);
         }
         else
         if(strcmp(argv[i],"-average")==0)
@@ -4197,6 +4325,11 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-stereographic")==0)    // stereographic projection
         {
             stereographic(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-subdivide")==0)    // stereographic projection
+        {
+            subdivide(&mesh);
         }
         else
         if(strcmp(argv[i],"-verts")==0)    // display number of vertices
