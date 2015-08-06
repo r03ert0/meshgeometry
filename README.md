@@ -28,6 +28,7 @@ Geometry measurement                             |Description
 -depth                                           |Compute sulcal depth
 -areaMap                                         |Compute surface area per vertex
 -icurv number_of_iterations                      |Integrated curvature (warning: icurv changes the geometry of the mesh)
+-isolatedVerts                                   |Count the number of isolated vertices in the mesh
 
 Geometry modification                            |Description
 -------------------------------------------------|----------------
@@ -43,6 +44,7 @@ Geometry modification                            |Description
 -randverts number_of_vertices                    |Generate homogeneously distributedrandom vertices over the mesh
 -relax filename                                  |Relax current mesh to mesh at filename (both meshes have the same topology)
 -resample smooth_mesh reference_mesh             |Resample the mesh to match the vertices and the topology of the argument mesh
+-removeIsolatedVerts                             |Removes isolated vertices in the mesh (if present)
 -rotate x y z                                    |Rotate with angles x, y and z (in degrees)
 -scale scale_value                               |Multiply each vertex by 'scale'
 -stereographic                                   |Stereographic projection
