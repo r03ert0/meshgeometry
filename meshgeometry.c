@@ -2992,6 +2992,83 @@ int icurvature(int iter, Mesh *m)
     
     return 0;
 }
+int isolatedVerts(Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    int3D   *t=m->t;
+    int     *n;
+    int     i,sum;
+    
+    n=(int*)calloc(*np,sizeof(int));
+    for(i=0;i<*nt;i++)
+    {
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    sum=0;
+    for(i=0;i<*np;i++)
+    {
+        if(n[i]==0)
+            sum++;
+    }
+    free(n);
+    
+    printf("isolatedVerts: %i\n",sum);
+    
+    return 0;
+}
+int removeIsolatedVerts(Mesh *m)
+{
+    if(verbose)
+        printf("* removeIsolatedVerts\n");
+
+    int     np0,*np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    int     *n,*ip;
+    int     i,j;
+    
+    ip=(int*)calloc(*np,sizeof(int));
+    n=(int*)calloc(*np,sizeof(int));
+    
+    // count neighbours
+    for(i=0;i<*nt;i++)
+    {
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    
+    // make a lookup table for the new vertex indices
+    // and re-index the vertices
+    j=0;
+    for(i=0;i<*np;i++)
+    {
+        if(n[i]>0)
+        {
+            ip[i]=j;    // lookup table
+            p[j]=p[i];  // re-indexed vertices
+            j++;
+        }
+        else
+            ip[i]=-1;   // this doesn't really matter (it'll never be read)
+    }
+    np0=*np;
+    *np=j;  // j is the new number of vertices
+    
+    // re-index triangles
+    for(i=0;i<*nt;i++)
+        t[i]=(int3D){ip[t[i].a],ip[t[i].b],ip[t[i].c]};
+    free(n);
+    
+    if(verbose)
+        printf("%i vertices were removed\n",np0-j);
+    
+    return 0;
+}
 int laplace(float lambda, Mesh *m)
 {
     int     *np=&(m->np);
@@ -3015,7 +3092,13 @@ int laplace(float lambda, Mesh *m)
     }
     for(i=0;i<*np;i++)
     {
-        x=sca3D(tmp[i],1/(float)n[i]);
+        if(n[i]==0)
+        {
+            printf("WARNING: isolated vertex %i\n",i);
+            x=tmp[i];
+        }
+        else
+            x=sca3D(tmp[i],1/(float)n[i]);
         dx=sub3D(x,p[i]);
         p[i]=add3D(p[i],sca3D(dx,lambda));    // p=p+l(x-p)
     }
@@ -3677,6 +3760,9 @@ int taubin(float lambda, float mu, int N, Mesh *m)
 {
     int j;
     
+    if(verbose)
+        printf("* taubinSmooth %f %f %i\n",lambda,mu,N);
+        
     for(j=0;j<2*N;j++)
         if(j%2==0)
             laplace(lambda,m);
@@ -3993,6 +4079,7 @@ void printHelp(void)
     -foldLength                                      Compute total fold length\n\
     -h                                               Help\n\
     -icurv number_of_iterations                      Integrated curvature\n\
+    -isolatedVerts                                   Find isolated vertices\n\
     -laplaceSmooth lambda number_of_iterations       Laplace smoothing\n\
     -lissencephalic                                  Smooth valleys and hills, not the coast\n\
     -level level_value                               Adds new vertices (and triangles) to the\n\
@@ -4013,6 +4100,7 @@ void printHelp(void)
                                                        random vertices over the mesh\n\
     -relax filename                                  Relax current mesh to mesh at filename\n\
                                                         (both meshes have the same topology)\n\
+    -removeIsolatedVerts                             Remove isolated vertices\n\
     -resample smooth_mesh reference_mesh             Resample the mesh to match the vertices\n\
                                                        and the topology of the argument mesh\n\
     -rotate x y z                                    Rotate with angles x, y and z in degrees\n\
@@ -4187,6 +4275,16 @@ int main(int argc, char *argv[])
             if(mesh.data==NULL)
                 mesh.data=(float*)calloc(mesh.np,sizeof(float));
             icurvature(atoi(argv[++i]),&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-isolatedVerts")==0)
+        {
+            isolatedVerts(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-removeIsolatedVerts")==0)
+        {
+            removeIsolatedVerts(&mesh);
         }
         else
         if(strcmp(argv[i],"-laplaceSmooth")==0)
