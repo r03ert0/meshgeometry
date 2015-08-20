@@ -2656,7 +2656,7 @@ int barycentricProjection(char *path_rm, Mesh *m)
     
     return 0;
 }
-void centre(Mesh *m)
+void barycentre(Mesh *m)
 {
     int     *np=&(m->np);
     float3D *p=m->p;
@@ -2671,6 +2671,31 @@ void centre(Mesh *m)
         printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
     }
     for(i=0;i<*np;i++)
+        p[i]=sub3D(p[i],centre);
+}
+void centre(Mesh *m)
+{
+    int     np=m->np;
+    float3D *p=m->p;
+    int     i;
+    float3D mi,ma,centre;
+    
+    mi=ma=p[0];
+    for(i=0;i<np;i++)
+    {
+        mi.x=(mi.x>p[i].x)?p[i].x:mi.x;
+        mi.y=(mi.y>p[i].y)?p[i].y:mi.y;
+        mi.z=(mi.z>p[i].z)?p[i].z:mi.z;
+        ma.x=(ma.x<p[i].x)?p[i].x:ma.x;
+        ma.y=(ma.y<p[i].y)?p[i].y:ma.y;
+        ma.z=(ma.z<p[i].z)?p[i].z:ma.z;
+    }
+    centre=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
+    if(verbose)
+    {
+        printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
+    }
+    for(i=0;i<np;i++)
         p[i]=sub3D(p[i],centre);
 }
 void checkOrientation(Mesh *m)
@@ -4957,9 +4982,10 @@ void printHelp(void)
     -areaMap                                         Compute surface area per vertex\n\
     -average n_meshes path1 path2 ... pathn          Compute an average of n_meshes all\n\
                                                        of the same topology\n\
+    -barycentre                                      Put the mesh origin at the average of all its vertices\n\
     -barycentricProjection reference_mesh            Print barycentric coordinates for each vertex in reference_mesh\n\
     -checkOrientation                                Check that normals point outside\n\
-    -centre                                          Move the mesh's barycentre to the origin\n\
+    -centre                                          Put the mesh origin at half its width, length and height\n\
     -countClusters  value                            Count clusters in texture data\n\
     -curv                                            Compute curvature\n\
     -depth                                           Compute sulcal depth\n\
@@ -5312,6 +5338,11 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-foldLength")==0)
         {
             foldLength(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-barycentre")==0)
+        {
+            barycentre(&mesh);
         }
         else
         if(strcmp(argv[i],"-centre")==0)
