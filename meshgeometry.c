@@ -103,6 +103,7 @@ int smooth(Mesh *m);
 int taubin(float lambda, float mu, int N, Mesh *m);
 float minData(Mesh *m);
 float maxData(Mesh *m);
+int nonmanifold_tris(Mesh *mesh);
 
 int g_gluInitFlag=0;
 
@@ -328,6 +329,94 @@ void neighbours(Mesh *m)
         ((*NT)[t[i].b]).t[((*NT)[t[i].b]).n++] = i;
         ((*NT)[t[i].c]).t[((*NT)[t[i].c]).n++] = i;
     }
+}
+#define TINY 1.0e-10	// A small number.
+#define NMAX 500000  	//Maximum allowed number of function evaluations.
+#define SWAP(a,b) {swap=(a);(a)=(b);(b)=swap;}
+float amotry(float *p, float y[], float psum[], int ndim,float (*funk)(float []), int ihi, float fac)
+{
+	int		j;
+	float	fac1,fac2,ytry,*ptry;
+
+	ptry=(float*)calloc(ndim,sizeof(float));
+	fac1=(1.0-fac)/ndim;
+	fac2=fac1-fac;
+	for (j=0;j<ndim;j++)
+		ptry[j]=psum[j]*fac1-p[ndim*ihi+j]*fac2;
+	ytry=(*funk)(ptry);		// Evaluate the function at the trial point.
+	if (ytry < y[ihi])
+	{
+		// If it's better than the highest, then replace the highest.
+		y[ihi]=ytry;
+		for (j=0;j<ndim;j++)
+		{
+			psum[j] += ptry[j]-p[ndim*ihi+j];
+			p[ndim*ihi+j]=ptry[j];
+		}
+	}
+	free(ptry);
+	return ytry;
+}
+#define GET_PSUM  for(j=0;j<ndim;j++){for(sum=0.0,i=0;i<mpts;i++)sum+=p[ndim*i+j];psum[j]=sum;}
+void amoeba(float *p, float y[], int ndim, float ftol,float (*funk)(float []),int *nfunk)
+// Multidimensional minimization of the function funk(x) where x[0..ndim-1] is a vector in ndim
+// dimensions, by the downhill simplex method of Nelder and Mead. From Numerical Recipes in C
+{
+	int 	i,ihi,ilo,inhi,j,mpts=ndim+1;
+	float    rtol,sum,swap,ysave,ytry,*psum;
+
+	psum=(float*)calloc(ndim,sizeof(float));
+	*nfunk=0;
+	GET_PSUM
+	for (;;)
+	{
+		ilo=0;
+		ihi = y[0]>y[1] ? (inhi=1,0) : (inhi=0,1);
+		for (i=0;i<mpts;i++)
+		{
+			if (y[i] <= y[ilo])
+				ilo=i;
+			if (y[i] > y[ihi])
+			{
+				inhi=ihi;
+				ihi=i;
+			}
+			else if (y[i] > y[inhi] && i != ihi)
+				inhi=i;
+		}
+		rtol=2.0*fabs(y[ihi]-y[ilo])/(fabs(y[ihi])+fabs(y[ilo])+TINY);
+		if (rtol < ftol)
+		{
+			SWAP(y[0],y[ilo])
+			for (i=0;i<ndim;i++) SWAP(p[ndim*(0)+i],p[ndim*ilo+i])
+			break;
+		}
+		if (*nfunk >= NMAX){break;};
+		*nfunk += 2;
+		ytry=amotry(p,y,psum,ndim,funk,ihi,-1.0);
+		if (ytry <= y[ilo])
+			ytry=amotry(p,y,psum,ndim,funk,ihi,2.0);
+		else if (ytry >= y[inhi])
+		{
+			ysave=y[ihi];
+			ytry=amotry(p,y,psum,ndim,funk,ihi,0.5);
+			if (ytry >= ysave)
+			{
+				for (i=0;i<mpts;i++)
+				if (i != ilo)
+				{
+					for (j=0;j<ndim;j++)
+						p[ndim*i+j]=psum[j]=0.5*(p[ndim*i+j]+p[ndim*(ilo-1)+j]);
+					y[i]=(*funk)(psum);
+				}
+				*nfunk += ndim;		// Keep track of function evaluations.
+				GET_PSUM			// Recompute psum.
+			}
+		}
+		else
+			--(*nfunk);				// Correct the evaluation count.
+	}								// Go back for the test of doneness and the next
+	free(psum);
 }
 #pragma mark -
 #pragma mark [ Format conversion ]
@@ -1916,7 +2005,7 @@ int freeMesh(Mesh *m)
 }
 int loadMesh(char *path, Mesh *m,int iformat)
 {
-    if(verbose) printf("* imesh\n");
+    if(verbose) printf("* imesh: %s\n",path);
 
     int        err,format;
 
@@ -1986,6 +2075,8 @@ int loadMesh(char *path, Mesh *m,int iformat)
 }
 int addMesh(char *path, Mesh *m0,int iformat)
 {
+    if(verbose) printf("* addMesh: %s\n",path);
+
     // m0: old mesh
     // m1: new mesh
     Mesh    amesh;
@@ -2031,7 +2122,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
 }
 int saveMesh(char *path, Mesh *m, int oformat)
 {
-    if(verbose) printf("* omesh\n");
+    if(verbose) printf("* omesh: %s\n",path);
 
     int    err=0,format;
     
@@ -2249,6 +2340,163 @@ void absgi(Mesh *m)
     logAbsGI=log(S)-2*log(V)/3.0-log(36*pi)/3.0;
     
     printf("absgi: %f\n",exp(logAbsGI));
+}
+void align(Mesh *m, char *path)
+{
+/*
+    Align (translate/rotate) the mesh m to the mesh pointed by path. Both have the same topology,
+    different geometry.
+*/
+    Mesh    target;
+    int     np=m->np;
+    float3D *p=m->p;
+    int     npt;    // number of vertices in target
+    float3D *pt;    // vertices in target
+    float3D pp; // moving vertex
+    int     i,j,niter;
+    float3D c0={0,0,0},c1={0,0,0};
+    float   x0,y0,z0,x,y,z,M[9];
+    float   err,minerr;
+    int     iminerr;
+    
+    loadMesh(path, &target,0);
+    npt=target.np;
+    pt=target.p;
+    if(np!=npt)
+    {
+        printf("ERROR: original and target meshes have to have the same number of points\n");
+        return;
+    }
+
+    // Move barycentre of m to zero
+    //-------------------------------
+    for(i=0;i<np;i++)
+    {
+        c0=add3D(c0,p[i]);
+        c1=add3D(c1,pt[i]);
+    }
+    c0=sca3D(c0,1/(float)np);
+    c1=sca3D(c1,1/(float)np);
+    for(i=0;i<np;i++)
+    {
+        p[i]=sub3D(p[i],c0);
+        pt[i]=sub3D(pt[i],c1);
+    }
+    
+    // Rotate m to minimise (m-p)^2
+    //-------------------------------
+    // Guess an initial rotation
+    niter=1000;
+    iminerr=0;
+    srand(0); // seed the random number generator
+    for(j=0;j<niter;j++)
+    {
+        x=2*pi*rand()/(float)RAND_MAX;
+        y=2*pi*rand()/(float)RAND_MAX;
+        z=2*pi*rand()/(float)RAND_MAX;
+
+        M[0]=cos(z)*cos(y);
+        M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
+        M[2]=sin(z)*sin(x)+cos(z)*sin(y)*cos(x);
+        M[3]=sin(z)*cos(y);
+        M[4]=cos(z)*cos(x)+sin(z)*sin(y)*sin(x);
+        M[5]=-cos(z)*sin(x)+sin(z)*sin(y)*cos(x);
+        M[6]=-sin(y);
+        M[7]=cos(y)*sin(x);
+        M[8]=cos(y)*cos(x);
+
+        err=0;
+        for(i=0;i<np;i++)
+        {
+            pp.x=M[0]*p[i].x+M[1]*p[i].y+M[2]*p[i].z;
+            pp.y=M[3]*p[i].x+M[4]*p[i].y+M[5]*p[i].z;
+            pp.z=M[6]*p[i].x+M[7]*p[i].y+M[8]*p[i].z;
+            err+=norm3D(sub3D(pt[i],pp));
+        }
+        if(j==0)
+            minerr=err;
+        else if(err<minerr)
+        {
+            minerr=err;
+            iminerr=j;
+        }
+    }
+    printf("Minimum err2 for 1st guess: %f\n",minerr);
+    srand(0);
+    for(j=0;j<iminerr+1;j++)
+    {
+        x0=2*pi*rand()/(float)RAND_MAX;
+        y0=2*pi*rand()/(float)RAND_MAX;
+        z0=2*pi*rand()/(float)RAND_MAX;
+    }
+
+    iminerr=0;
+    srand(0); // seed the random number generator
+    for(j=0;j<niter;j++)
+    {
+        x=x0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+        y=y0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+        z=z0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+
+        M[0]=cos(z)*cos(y);
+        M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
+        M[2]=sin(z)*sin(x)+cos(z)*sin(y)*cos(x);
+        M[3]=sin(z)*cos(y);
+        M[4]=cos(z)*cos(x)+sin(z)*sin(y)*sin(x);
+        M[5]=-cos(z)*sin(x)+sin(z)*sin(y)*cos(x);
+        M[6]=-sin(y);
+        M[7]=cos(y)*sin(x);
+        M[8]=cos(y)*cos(x);
+
+        err=0;
+        for(i=0;i<np;i++)
+        {
+            pp.x=M[0]*p[i].x+M[1]*p[i].y+M[2]*p[i].z;
+            pp.y=M[3]*p[i].x+M[4]*p[i].y+M[5]*p[i].z;
+            pp.z=M[6]*p[i].x+M[7]*p[i].y+M[8]*p[i].z;
+            err+=norm3D(sub3D(pt[i],pp));
+        }
+        if(j==0)
+            minerr=err;
+        else if(err<minerr)
+        {
+            minerr=err;
+            iminerr=j;
+        }
+    }
+    printf("Minimum err2 for 2nd guess: %f\n",minerr);
+    srand(0);
+    for(j=0;j<iminerr+1;j++)
+    {
+        x=x0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+        y=y0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+        z=z0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+    }
+
+    printf("x: %g, y: %g, z: %g\n",x*180/pi,y*180/pi,z*180/pi);
+
+    M[0]=cos(z)*cos(y);
+    M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
+    M[2]=sin(z)*sin(x)+cos(z)*sin(y)*cos(x);
+    M[3]=sin(z)*cos(y);
+    M[4]=cos(z)*cos(x)+sin(z)*sin(y)*sin(x);
+    M[5]=-cos(z)*sin(x)+sin(z)*sin(y)*cos(x);
+    M[6]=-sin(y);
+    M[7]=cos(y)*sin(x);
+    M[8]=cos(y)*cos(x);
+    for(i=0;i<np;i++)
+    {
+        pp.x=M[0]*p[i].x+M[1]*p[i].y+M[2]*p[i].z;
+        pp.y=M[3]*p[i].x+M[4]*p[i].y+M[5]*p[i].z;
+        pp.z=M[6]*p[i].x+M[7]*p[i].y+M[8]*p[i].z;
+        p[i]=pp;
+    }
+
+    // move mesh m to target barycentre
+    /*
+    for(i=0;i<np;i++)
+        p[i]=add3D(p[i],c1);
+    */
 }
 float area(Mesh *m)
 {
@@ -2524,6 +2772,8 @@ void countClusters(float thr, Mesh *m)
 }
 int curvature(float *C, Mesh *m)
 {
+    if(verbose>1)
+        printf("mean curvature\n");
     int     *np=&(m->np);
     int     *nt=&(m->nt);
     float3D *p=m->p;
@@ -2651,6 +2901,8 @@ int curvature_exact(float *C, Mesh *m)
 }
 void depth(float *C, Mesh *m)
 {
+    if(verbose)
+        printf("depth\n");
 	int			i;
     float		n,max;
 	float3D		ce={0,0,0},ide,siz;
@@ -2684,7 +2936,6 @@ void depth(float *C, Mesh *m)
         C[i] = sqrt(n);
         if(C[i]>max)	max=C[i];
     }
-    max*=1.05;	// pure white is not nice...
     for(i=0;i<np;i++)
         C[i]=C[i]/max;
 }
@@ -2724,7 +2975,7 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
         if(strcmp(cmap,"rainbow")==0)
             rainbow(val,&R,&G,&B);
         else
-        if(strcmp(cmap,"grey")==0)
+        if(strcmp(cmap,"grey")==0 || strcmp(cmap,"level2")==0 || strcmp(cmap,"level4")==0)
             greyscale(val,&R,&G,&B);
         else
         {
@@ -2796,6 +3047,15 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
 	// Write image in TIFF format
 	addr=(char*)calloc(width*height,sizeof(char)*4);
     glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,addr);
+    
+    if(strcmp(cmap,"level2")==0)
+    for(i=0;i<width*height*4;i++)
+        addr[i]=(addr[i]%128>=120 && addr[i]%128<128)?0:255;
+
+    if(strcmp(cmap,"level4")==0)
+    for(i=0;i<width*height*4;i++)
+        addr[i]=(addr[i]%64>=60 && addr[i]%64<64)?0:255;
+
 	writeTIFF(tiff_path,addr,width,height);
 	
 	free(color);
@@ -2849,6 +3109,194 @@ int fixflip(Mesh *m)
         p[i]=tmp;
     }
     return 0;
+}
+int fixNonmanifold_verts(Mesh *mesh)
+{
+    NTriRec *ne;
+    int3D   *e;
+    int e_length;
+    int i,j,k,l,found,loop;
+    int np=mesh->np;
+    float3D *p=mesh->p;
+    int3D *t=mesh->t;
+    float3D *p1;
+    int *t1,t1_length;
+    int *i1,i1_length;
+    
+    neighbours(mesh);
+    ne=mesh->NT;
+
+    for(i=0;i<np;i++)
+    {
+        e=(int3D*)calloc(ne[i].n*3,sizeof(int3D));
+        e_length=0;
+        for(j=0;j<ne[i].n;j++)
+        {
+            if(t[ne[i].t[j]].a==i)
+                e[e_length++]=(int3D){t[ne[i].t[j]].b,t[ne[i].t[j]].c,ne[i].t[j]};
+            else
+            if(t[ne[i].t[j]].b==i)
+                e[e_length++]=(int3D){t[ne[i].t[j]].c,t[ne[i].t[j]].a,ne[i].t[j]};
+            else
+                e[e_length++]=(int3D){t[ne[i].t[j]].a,t[ne[i].t[j]].b,ne[i].t[j]};
+        }
+        
+        //printf("p[%i]: ",i); for(j=0;j<e_length;j++) printf("(%i,%i,[%i]) ",e[j].a,e[j].b,e[j].c); printf("\n");
+        j=0;
+        i1=(int*)calloc(ne[i].n,sizeof(int));
+        t1=(int*)calloc(ne[i].n*3,sizeof(int));
+        i1_length=0;
+        t1_length=0;
+        i1[i1_length++]=t1_length;
+        t1[t1_length++]=e[j].c; //printf("  t[%i] ",e[j].c);
+        while(j<e_length-1)
+        {
+            loop=0;
+            k=j+1;
+            while(k<e_length)
+            {
+                found=1;
+                if(e[j].a==e[k].a)
+                    e[j]=(int3D){e[j].b,e[k].b,e[j].c};
+                else if(e[j].a==e[k].b)
+                    e[j]=(int3D){e[j].b,e[k].a,e[j].c};
+                else if(e[j].b==e[k].a)
+                    e[j]=(int3D){e[j].a,e[k].b,e[j].c};
+                else if(e[j].b==e[k].b)
+                    e[j]=(int3D){e[j].a,e[k].a,e[j].c};
+                else
+                {
+                    //printf("j%i k%i. *\n",j,k);
+                    found=0;
+                }
+                if(found)
+                {
+                    //printf("j%i k%i. t[%i], t[%i]\n",j,k,e[j].c,e[k].c);
+                    t1[t1_length++]=e[k].c; //printf("t[%i] ",e[k].c);
+                    e[k]=e[--e_length];
+    
+                    //printf("p[%i]: ",i); for(m=0;m<e_length;m++) printf("(%i,%i,[%i]) ",e[m].a,e[m].b,e[m].c); printf("\n");
+        
+                    if(e[j].a==e[j].b)
+                    {
+                        //printf("\n");
+                        loop=1;
+                        j++;
+                        if(j<e_length)
+                        {
+                            i1[i1_length++]=t1_length;
+                            t1[t1_length++]=e[j].c; //printf("  t[%i] ",e[j].c);
+                        }
+                        break;
+                    }
+                }
+                else
+                    k++;
+            }
+        }
+        free(e);
+
+        if(ne[i].n==0)
+            printf("WARNING, %i is isolated: remove it\n",i);
+        else
+        if(ne[i].n==1)
+            printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
+        else
+        if(loop==0)
+            printf("\nWARNING, %i is in a degenerate region: examine more in detail\n",i);
+        else
+        if(e_length>1)
+        {
+            printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
+            
+            p1=(float3D*)calloc(np+e_length-1,sizeof(float3D));
+            for(l=0;l<np;l++)
+                p1[l]=p[l];     // copy the original vertices
+            for(l=0;l<e_length-1;l++)
+                p1[np+l]=p[i]; // make e_length-1 copies of vertex i at the end of the vertex vector
+            
+            k=1;
+            for(j=0;j<t1_length;j++)
+            {
+                if(i1[k]==j)
+                {
+                    printf(" | ");
+                    k++;
+                }
+                printf("%i ",t1[j]);
+                if(k>1)
+                {
+                    if(t[t1[j]].a==i)   t[t1[j]].a=np+(k-2);
+                    if(t[t1[j]].b==i)   t[t1[j]].b=np+(k-2);
+                    if(t[t1[j]].c==i)   t[t1[j]].c=np+(k-2);
+                }
+            }
+            printf("\n");
+            free(mesh->p);
+            mesh->p=p1;
+            mesh->np=np+e_length-1;
+            return 1;
+        }
+        else
+        {
+            // printf("%i: ok\n",i);
+        }
+        free(t1);
+        free(i1);
+    }
+    
+    return 0;
+}
+int fixnonmanifold_tris(Mesh *mesh)
+{
+	int     i,j,found;
+	int3D   *t=mesh->t,t1;
+	int     nt=mesh->nt;
+	int     np=mesh->np;
+	int     np1;
+	NTriRec *ne;
+	float3D *p1,*p=mesh->p;
+	
+	found=nonmanifold_tris(mesh);
+	
+	if(found==0)
+	{
+	    printf("no nonmanifold triangles found\n");
+	    return 0;
+	}
+	
+	p1=(float3D*)calloc(np+found*3,sizeof(float3D));
+	for(i=0;i<np;i++)
+	    p1[i]=p[i];
+	np1=np;
+
+    neighbours(mesh);
+    ne=mesh->NT;
+    
+	found=0;
+	for(i=0;i<nt;i++)
+	{
+        for(j=0;j<ne[t[i].a].n;j++)
+        if(ne[t[i].a].t[j]!=i)
+        {
+            t1=t[ne[t[i].a].t[j]];
+            if( (t1.a==t[i].a||t1.a==t[i].b||t1.a==t[i].c)&&
+                (t1.b==t[i].a||t1.b==t[i].b||t1.b==t[i].c)&&
+                (t1.c==t[i].a||t1.c==t[i].b||t1.c==t[i].c))
+            {
+                found++;
+                printf("triangle %i doubles triangle %i. Fixing it\n",i,ne[t[i].a].t[j]);
+                /*
+                p1[np1]=p[t.a];
+                p1[np1+1]=p[t.b];
+                p1[np2+2]=p[t.c];
+                */
+                break;
+            }
+        }
+	}
+	printf("%i double triangles found\n",found/2);
+	return found/2;
 }
 int fixSmall(Mesh *m)
 {
@@ -2968,6 +3416,8 @@ int foldLength(Mesh *m)
 }
 int icurvature(int iter, Mesh *m)
 {
+    if(verbose)
+        printf("icurvature\n");
     int     *np=&(m->np);
     float   *data=m->data;
     float   *tmp;
@@ -3071,6 +3521,8 @@ int removeIsolatedVerts(Mesh *m)
 }
 int laplace(float lambda, Mesh *m)
 {
+    if(verbose)
+        printf("laplace smooth\n");
     int     *np=&(m->np);
     int     *nt=&(m->nt);
     float3D *p=m->p;
@@ -3387,6 +3839,37 @@ float minData(Mesh *m)
     printf("minData: %f\n",min);
     return min;
 }
+float mirror(Mesh *m, char *coord)
+{
+    int np=m->np;
+    float3D *p=m->p;
+    int i;
+    float3D c={0,0,0};
+    
+    // compute barycentre
+    for(i=0;i<np;i++)
+        c=add3D(c,p[i]);
+    c=sca3D(c,1/(float)np);
+    
+    // mirror
+    switch((char)coord[0])
+    {
+        case 'x':
+            for(i=0;i<np;i++)
+                p[i]=(float3D){2*c.x-p[i].x,p[i].y,p[i].z};
+            break;
+        case 'y':
+            for(i=0;i<np;i++)
+                p[i]=(float3D){p[i].x,2*c.y-p[i].y,p[i].z};
+            break;
+        case 'z':
+            for(i=0;i<np;i++)
+                p[i]=(float3D){p[i].x,p[i].y,2*c.z-p[i].z};
+            break;
+    }
+    
+    return 0;
+}
 float stdData(Mesh *m)
 {
     int     np=m->np;
@@ -3410,14 +3893,253 @@ float stdData(Mesh *m)
     printf("stdData: %f\n",std);
     return std;
 }
+/*
+3 5 4 5		c1: e1.a<e2.a					r -1
+4 5 3 5		c2: e1.a>e2.a					r  1
+3 5 3 7		c3: e1.a==e2.a, e1.b<e2.b		r -1
+3 7 3 5		c4: e1.a==e2.a, e1.b>e2.b		r  1
+			c5: e1.a==e2.a, e1.b==e2.b		r  0
+*/
+int compareEdges (const void *a, const void *b)
+{
+	int2D	e1=*(int2D*)a;
+	int2D	e2=*(int2D*)b;
+
+	if(e1.a==e2.a)
+	{
+		if(e1.b==e2.b)
+			return 0;
+		else
+		if(e1.b<e2.b)
+			return -1;
+		else
+			return 1;
+	}
+	else
+	{
+		if(e1.a<e2.a)
+			return -1;
+		else
+			return	1;
+	}
+}
+int nonmanifold_verts(Mesh *mesh)
+{
+    NTriRec *ne;
+    int3D   *e;
+    int e_length;
+    int i,j,k,found,loop;
+    int np=mesh->np;
+    int3D *t=mesh->t;
+    int *t1,t1_length;
+    int *i1,i1_length;
+    int sum=0;
+   
+    neighbours(mesh);
+    ne=mesh->NT;
+
+	printf("non manifold vertices\n");
+    for(i=0;i<np;i++)
+    {
+        // store all the edges in the triangles connected to vertex p[i]
+        // that do not contain vertex p[i]
+        e=(int3D*)calloc(ne[i].n*3,sizeof(int3D));
+        e_length=0;
+        for(j=0;j<ne[i].n;j++)
+        {
+            if(t[ne[i].t[j]].a==i)
+                e[e_length++]=(int3D){t[ne[i].t[j]].b,t[ne[i].t[j]].c,ne[i].t[j]};
+            else
+            if(t[ne[i].t[j]].b==i)
+                e[e_length++]=(int3D){t[ne[i].t[j]].c,t[ne[i].t[j]].a,ne[i].t[j]};
+            else
+                e[e_length++]=(int3D){t[ne[i].t[j]].a,t[ne[i].t[j]].b,ne[i].t[j]};
+        }
+/*        
+        printf("p[%i]: ",i); for(j=0;j<e_length;j++) printf("(%i,%i) ",e[j].a,e[j].b); printf("\n");
+*/       
+        // scan the list of edges, if 2 edges share a vertex,
+        // delete the vertex and connect the points directly.
+        // at the end, there should be only one edge remaining
+        // connecting one vertex to itself. All remaining a-a
+        // edges represent supplementary loops, then, non-manifoldness
+        j=0;
+        i1=(int*)calloc(ne[i].n,sizeof(int));
+        t1=(int*)calloc(ne[i].n*3,sizeof(int));
+        i1_length=0;
+        t1_length=0;
+        i1[i1_length++]=t1_length;
+        t1[t1_length++]=e[j].c;
+        while(j<e_length-1)
+        {
+            loop=0;
+            k=j+1;
+            while(k<e_length)
+            {
+                found=1;
+                if(e[j].a==e[k].a)
+                    e[j]=(int3D){e[j].b,e[k].b,e[j].c};
+                else if(e[j].a==e[k].b)
+                    e[j]=(int3D){e[j].b,e[k].a,e[j].c};
+                else if(e[j].b==e[k].a)
+                    e[j]=(int3D){e[j].a,e[k].b,e[j].c};
+                else if(e[j].b==e[k].b)
+                    e[j]=(int3D){e[j].a,e[k].a,e[j].c};
+                else
+                    found=0;
+                if(found)
+                {
+                    t1[t1_length++]=e[k].c; //printf("t[%i] ",e[k].c);
+                    e[k]=e[--e_length];
+                    if(e[j].a==e[j].b)
+                    {
+                        //printf("\n");
+                        loop=1;
+                        j++;
+                        if(j<e_length)
+                        {
+                            i1[i1_length++]=t1_length;
+                            t1[t1_length++]=e[j].c; //printf("  t[%i] ",e[j].c);
+                        }
+                        break;
+                    }
+                }
+                else
+                    k++;
+            }
+        }
+        // printf("p[%i]: ",i); for(j=0;j<e_length;j++) printf("(%i,%i) ",e[j].a,e[j].b); printf("\n");
+        free(e);
+        free(t1);
+        free(i1);
+
+        if(ne[i].n==0)      printf("WARNING, %i is isolated: remove it\n",i);
+        else if(ne[i].n==1) printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
+        else if(loop==0)    printf("WARNING, %i is in a degenerate region: examine more in detail\n",i);
+        else if(e_length>1)
+        {
+            printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
+            sum++;
+        }
+        else
+        {
+            // printf("%i: ok\n",i);
+        }
+    }
+    return sum;
+}
+void nonmanifold_eds(Mesh *mesh)
+{
+	int     i,j,k,equal;
+    int     n;  // # manifold edges
+    int3D	*e;
+	int		*t;	
+	int3D   *tris=mesh->t;
+	int     nt=mesh->nt;
+
+	// make a list of all edges
+	e=(int3D*)calloc(nt*3,sizeof(int3D));
+	for(i=0;i<nt;i++)
+	{
+		t=(int*)&(tris[i]);
+		for(j=0;j<3;j++)
+		{
+			if(t[j]<t[(j+1)%3])
+			{
+				e[3*i+j].a=t[j];        // 1st vertex
+				e[3*i+j].b=t[(j+1)%3];  // 2nd vertex
+				e[3*i+j].c=i;           // # triangle
+			}
+			else
+			{
+				e[3*i+j].a=t[(j+1)%3];  // 1st vertex
+				e[3*i+j].b=t[j];        // 2nd vertex
+				e[3*i+j].c=i;           // # triangle
+			}
+		}
+	}
+	
+	// sort edges
+	qsort(e,nt*3,sizeof(int3D),compareEdges);
+
+	//for(i=0;i<nt*3;i++) printf("e[%i]=(%i,%i), t[%i]\n",i,e[i].a,e[i].b,e[i].c);
+	
+	printf("non manifold edges\n");
+	// count nonmanifold edges
+	j=0;
+	k=0;
+	n=0;
+	do
+	{
+		k=1;
+		do
+		{
+    		equal=0;
+            if(e[j].a==e[j+k].a && e[j].b==e[j+k].b)
+            {
+                k++;
+                equal=1;
+            }
+            else
+            {
+                if(k!=2) {
+                    printf("edge (%i,%i) belongs to %i triangles\n",e[j].a,e[j].b,k);
+                    n++;
+                }
+                j+=k;
+                k=1;
+            }
+        }
+        while(equal);
+	}
+	while(j<nt*3);
+	printf("nonmanifold edges:%i\n",n);
+}
+int nonmanifold_tris(Mesh *mesh)
+{
+	int     i,j,found;
+	int3D   *t=mesh->t,t1;
+	int     nt=mesh->nt;
+	NTriRec *ne;
+
+    neighbours(mesh);
+    ne=mesh->NT;
+    
+	found=0;
+	for(i=0;i<nt;i++)
+	{
+        for(j=0;j<ne[t[i].a].n;j++)
+        if(ne[t[i].a].t[j]!=i)
+        {
+            t1=t[ne[t[i].a].t[j]];
+            if( (t1.a==t[i].a||t1.a==t[i].b||t1.a==t[i].c)&&
+                (t1.b==t[i].a||t1.b==t[i].b||t1.b==t[i].c)&&
+                (t1.c==t[i].a||t1.c==t[i].b||t1.c==t[i].c))
+            {
+                found++;
+                printf("triangle %i doubles triangle %i\n",i,ne[t[i].a].t[j]);
+                break;
+            }
+        }
+	}
+	printf("%i double triangles found\n",found/2);
+	return found/2;
+}
 void normalise(Mesh *m)
 {
-    int     *np=&(m->np);
-    float3D *p=m->p;
+    int     np=m->np;
+    float3D *p=m->p,c={0,0,0},x;
     int     i;
     
-    for(i=0;i<*np;i++)
-        p[i]=sca3D(p[i],1/norm3D(p[i]));
+    for(i=0;i<np;i++)
+        c=add3D(c,p[i]);
+    c=sca3D(c,1/(float)np);
+    for(i=0;i<np;i++)
+    {
+        x=sub3D(p[i],c);
+        x=sca3D(x,100/norm3D(x));
+        p[i]=x;
+    }
 }
 int relaxMesh(char *path, Mesh *m0,int iformat)
 {
@@ -3756,6 +4478,69 @@ int subdivide(Mesh *m)
     
     return 1;
 }
+int tangentLaplace(float lambda, Mesh *m)
+{
+
+    if(verbose>1)
+        printf("tangent laplace smooth\n");
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *tmp,x,dx,*tmp1,nn;
+    int     *n;
+    int     i;
+    
+    normalise(m);
+    
+    // compute barycentre
+    tmp=(float3D*)calloc(*np,sizeof(float3D));
+    n=(int*)calloc(*np,sizeof(int));
+    for(i=0;i<*nt;i++)
+    {
+        tmp[t[i].a]=add3D(tmp[t[i].a],add3D(p[t[i].b],p[t[i].c]));
+        tmp[t[i].b]=add3D(tmp[t[i].b],add3D(p[t[i].c],p[t[i].a]));
+        tmp[t[i].c]=add3D(tmp[t[i].c],add3D(p[t[i].a],p[t[i].b]));
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    for(i=0;i<*np;i++)
+    {
+        if(n[i]==0)
+        {
+            printf("WARNING: isolated vertex %i\n",i);
+            x=tmp[i];
+        }
+        else
+            tmp[i]=sca3D(tmp[i],1/(float)n[i]);
+    }
+ 
+    // compute normal direction as the average of neighbour triangle normals
+     tmp1=(float3D*)calloc(*np,sizeof(float3D));
+    for(i=0;i<*nt;i++)
+    {
+        nn=cross3D(sub3D(p[t[i].b],p[t[i].a]),sub3D(p[t[i].c],p[t[i].a]));
+        nn=sca3D(nn,1/norm3D(nn));
+        tmp1[t[i].a]=add3D(tmp1[t[i].a],nn);
+        tmp1[t[i].b]=add3D(tmp1[t[i].b],nn);
+        tmp1[t[i].c]=add3D(tmp1[t[i].c],nn);
+    }
+    for(i=0;i<*np;i++)
+        tmp1[i]=sca3D(tmp1[i],1/(float)n[i]);
+
+    // apply only the smoothing component orthogonal to the normal direction
+    for(i=0;i<*np;i++)
+    {
+        dx=sub3D(tmp[i],p[i]);  // displacement vector
+        dx=sub3D(dx,sca3D(tmp1[i],dot3D(dx,tmp1[i]))); // tangential displacement vector
+        p[i]=add3D(p[i],sca3D(dx,lambda));    // tangential displacement weighted by lambda
+    }
+    free(tmp);
+    free(tmp1);
+    free(n);
+    return 0;   
+}
 int taubin(float lambda, float mu, int N, Mesh *m)
 {
     int j;
@@ -4048,6 +4833,113 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     
     return 0;
 }
+int uniform_sortVertices(const void *a, const void *b)
+{
+	float3D	v1=*(float3D*)a;
+	float3D	v2=*(float3D*)b;
+
+	if(v1.x==v2.x)
+	{
+		return 0;
+	}
+	else
+	{
+		if(v1.x<v2.x)
+			return -1;
+		else
+			return	1;
+	}
+}
+void uniform(Mesh *m)
+{
+    float3D *p=m->p,p0;
+    int np=m->np;
+    float3D *a,d,v,ma,mi,c;
+    int niter=2000,maxiter;
+    int i,j;
+    float x,s,ss,std,maxstd,r1,r2,n;
+    
+    mi=ma=p[0];
+    for(i=0;i<np;i++)
+    {
+        mi.x=(mi.x>p[i].x)?p[i].x:mi.x;
+        mi.y=(mi.y>p[i].y)?p[i].y:mi.y;
+        mi.z=(mi.z>p[i].z)?p[i].z:mi.z;
+        ma.x=(ma.x<p[i].x)?p[i].x:ma.x;
+        ma.y=(ma.y<p[i].y)?p[i].y:ma.y;
+        ma.z=(ma.z<p[i].z)?p[i].z:ma.z;
+    }
+    c=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
+    
+    srand(0);
+    for(j=0;j<niter;j++)
+    {
+        d.x=rand()/(float)RAND_MAX;
+        d.y=rand()/(float)RAND_MAX;
+        d.z=rand()/(float)RAND_MAX;
+        d=sca3D(d,1/norm3D(d));
+        s=ss=0;
+        for(i=0;i<np;i++)
+        {
+            p0=sub3D(p[i],c);
+            x=dot3D(p0,d);
+            s+=x;
+            ss+=x*x;
+        }
+        std=ss/(float)np+pow(s/(float)np,2);
+        //printf("%f\n",std);
+        if(j==0)
+        {
+            maxstd=std;
+            maxiter=j;
+        }
+        else if(maxstd<std)
+        {
+            maxstd=std;
+            maxiter=j;
+        }   
+    }
+
+    srand(0);
+    for(j=0;j<=maxiter;j++)
+    {
+        d.x=rand()/(float)RAND_MAX;
+        d.y=rand()/(float)RAND_MAX;
+        d.z=rand()/(float)RAND_MAX;
+        d=sca3D(d,1/norm3D(d));
+    }
+    printf("d=(%g,%g,%g)\n",d.x,d.y,d.z);
+    s=ss=0;
+    a=(float3D*)calloc(np,sizeof(float3D));
+    for(i=0;i<np;i++)
+    {
+        p0=sub3D(p[i],c);
+        x=dot3D(sca3D(p0,1/norm3D(p0)),d);
+        a[i].x=x;
+        a[i].y=i;
+        s+=x;
+        ss+=x*x;
+    }
+    printf("angle mean=%g, angle s.d.=%g\n",s/(float)np,std);
+    
+    // sort vertices per cos(angle)
+    qsort(a,np,sizeof(float3D),uniform_sortVertices);
+
+    // redistribute uniformly the vertices along the axis d
+    for(i=0;i<np;i++)
+    {
+        j=(int)(a[i].y+0.1);
+        p0=sub3D(p[j],c);
+        n=norm3D(p0);
+        r1=dot3D(p0,d);
+        v=sub3D(p0,sca3D(d,r1));
+        v=sca3D(v,1/norm3D(v));
+        r2=-(0.999-2*0.999*i/(float)np);
+        p0=add3D(sca3D(d,r2),sca3D(v,sqrt(1-r2*r2)));
+        p[j]=add3D(sca3D(p0,n/norm3D(p0)),c);
+    }
+    free(a);
+}
 void printHelp(void)
 {
      printf("\
@@ -4060,6 +4952,7 @@ void printHelp(void)
     \n\
     -absgi                                           Compute absolute gyrification index\n\
     -add filename                                    Add mesh at filename to the current mesh\n\
+    -align filename                                  Align mesh to the mesh pointed by filename, which has the same topology but different geometry\n\
     -area                                            Surface area\n\
     -areaMap                                         Compute surface area per vertex\n\
     -average n_meshes path1 path2 ... pathn          Compute an average of n_meshes all\n\
@@ -4070,7 +4963,7 @@ void printHelp(void)
     -countClusters  value                            Count clusters in texture data\n\
     -curv                                            Compute curvature\n\
     -depth                                           Compute sulcal depth\n\
-    -drawSurface colourmap path                      draw surface in tiff format, colourmap is 'grey' or 'rainbow'\n\
+    -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2 or level4\n\
     -euler                                           Print Euler characteristic\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
     -fixSmall                                        Detect triangles with an angle >160\n\
@@ -4093,8 +4986,10 @@ void printHelp(void)
     -clip min max                                    Clip data values to the interval [min,max]\n\
     -mean                                            Mean data value\n\
     -min                                             Minimum data value\n\
+    -mirror coord                                    Mirror vertices in the coordinate 'coord' relative to the mesh's barycentre\n\
+    -nonmanifold                                     Detect vertices in edges with more than 2 triangles\n\
     -normal                                          Mesh normal vectors\n\
-    -normalise                                       Place all vertices at distance 1 from\n\
+    -normalise                                       Place all vertices at distance 100 from\n\
                                                        the origin\n\
     -randverts number_of_vertices                    Generate homogeneously distributed\n\
                                                        random vertices over the mesh\n\
@@ -4108,6 +5003,7 @@ void printHelp(void)
     -size                                            Display mesh dimensions\n\
     -stereographic                                   Stereographic projection\n\
     -subdivide                                       Subdivide the mesh using 1 iteration of Kobbelt's sqrt(3) algorithm\n\
+    -tangentLaplace lambda number_of_iterations      Laplace smoothing tangential to the mesh surface\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
     -smoothData lambda number_of_iterations          Laplace smoothing of data, lambda=0 -> no smoothing, lambda=1 -> each vertex value to neighbour's average\n\
     -threshold value 0:down/1:up                     Threshold texture data\n\
@@ -4233,6 +5129,11 @@ int main(int argc, char *argv[])
             addMesh(argv[++i],&mesh,iformat);
         }
         else
+        if(strcmp(argv[i],"-align")==0)
+        {
+            align(&mesh,argv[++i]);
+        }
+        else
         if(strcmp(argv[i],"-areaMap")==0)
         {
             if(mesh.data==NULL)
@@ -4298,6 +5199,13 @@ int main(int argc, char *argv[])
                 laplace(l,&mesh);
         }
         else
+        if(strcmp(argv[i],"-nonmanifold")==0)
+        {
+            nonmanifold_verts(&mesh);
+            nonmanifold_eds(&mesh);
+            nonmanifold_tris(&mesh);
+        }
+        else
         if(strcmp(argv[i],"-taubinSmooth")==0)
         {
             int     N;
@@ -4341,6 +5249,13 @@ int main(int argc, char *argv[])
             fixflip(&mesh);
         }
         else
+        if(strcmp(argv[i],"-fixNonmanifold")==0)
+        {
+            int i,nm=nonmanifold_verts(&mesh);
+            for(i=0;i<nm;i++)
+                fixNonmanifold_verts(&mesh);
+        }
+        else
         if(strcmp(argv[i],"-fixSmall")==0)
         {
             fixSmall(&mesh);
@@ -4376,6 +5291,17 @@ int main(int argc, char *argv[])
             absgi(&mesh);
         }
         else
+        if(strcmp(argv[i],"-tangentLaplace")==0)
+        {
+            int     j,N;
+            float   l;
+            
+            l=atof(argv[++i]);
+            N=atoi(argv[++i]);
+            for(j=0;j<N;j++)
+                tangentLaplace(l,&mesh);
+        }
+        else
         if(strcmp(argv[i],"-threshold")==0)    // threshold value 0=down/1=up
         {
             float   value=atof(argv[++i]);
@@ -4398,6 +5324,12 @@ int main(int argc, char *argv[])
             char   *cmap=argv[++i];
             char   *tiff_path=argv[++i];
             drawSurface(&mesh,cmap,tiff_path);
+        }
+        else
+        if(strcmp(argv[i],"-mirror")==0)
+        {
+            char   *coord=argv[++i];
+            mirror(&mesh,coord);
         }
         else
         if(strcmp(argv[i],"-normalise")==0)
@@ -4453,6 +5385,11 @@ int main(int argc, char *argv[])
             subdivide(&mesh);
         }
         else
+        if(strcmp(argv[i],"-uniform")==0)    // make distribution of vertices uniform along the axis of maximum variability (for spherical meshes)
+        {
+            uniform(&mesh);
+        }
+        else
         if(strcmp(argv[i],"-verts")==0)    // display number of vertices
         {
             printf("verts: %i\n",mesh.np);
@@ -4471,7 +5408,7 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-v")==0)    // turn on verbose mode
         {
-            verbose=1;
+            verbose+=1;
         
             // print some information
             printf("%s\n",version);
