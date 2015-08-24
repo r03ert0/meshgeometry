@@ -5061,6 +5061,7 @@ void printHelp(void)
     .float                                           Raw float data\n\
     .txt1                                            RT's data format\n\
     .bin                                             n-e-r-v-o-u-s system web binary mesh\n\
+    .obj                                             Civet's .obj format. Has to be used with -iformat civet_obj\n\
     .wrl, .obj, .ply, .stl, .smesh, .off, .vtk       Other mesh formats\n\
 ");
 }
