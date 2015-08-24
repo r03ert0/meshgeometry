@@ -67,6 +67,7 @@ char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 #define kMGHData            16
 #define kVTKMesh            17
 #define kDPVData            18
+#define kCivetObjMesh       19
 
 typedef struct
 {
@@ -422,12 +423,13 @@ void amoeba(float *p, float y[], int ndim, float ftol,float (*funk)(float []),in
 #pragma mark [ Format conversion ]
 int getformatindex(char *path)
 {
-    char    *formats[]={"orig","pial","white","mesh","sratio",
-                        "float","curv","txt","inflated","sphere",
-                        "sulc","reg","txt1","wrl","obj",
-                        "ply","stl","smesh","off","bin",
-                        "mgh","annot","raw","vtk","dpv"};
-    int     i,n=24; // number of recognised formats
+    char    *formats[]={"orig",     "pial",  "white", "mesh",    "sratio",
+                        "float",    "curv",  "txt",   "inflated","sphere",
+                        "sulc",     "reg",   "txt1",  "wrl",     "obj",
+                        "ply",      "stl",   "smesh", "off",     "bin",
+                        "mgh",      "annot", "raw",   "vtk",     "dpv",
+                        "civet_obj"};
+    int     i,n=26; // number of recognised formats
     int     found,index;
     char    *extension;
     
@@ -573,6 +575,13 @@ int getformatindex(char *path)
         index=kDPVData;
         if(verbose)
             printf("Format: DPV Data\n");
+    }
+    else
+    if(i==25)
+    {
+        index=kCivetObjMesh;
+        if(verbose)
+            printf("Format: Civet Obj Mesh\n");
     }
         
     return index;
@@ -1299,7 +1308,8 @@ int VRML_save_mesh(char *path, Mesh *m)
 
     return 0;
 }
-/* What is this obj format??
+int CivetObj_load_mesh(char *path, Mesh *m)
+{
     int     *np=&(m->np);
     int     *nt=&(m->nt);
     float3D **p=&(m->p);
@@ -1342,10 +1352,10 @@ int VRML_save_mesh(char *path, Mesh *m)
         printf("Read %i triangles\n",*nt);
 
     fclose(f);
-*/
-/*
-What is this obj format??
-int Obj_save_mesh(char *path, Mesh *m)
+    
+    return 0;
+}
+int CivetObj_save_mesh(char *path, Mesh *m)
 {
     int     *np=&(m->np);
     int     *nt=&(m->nt);
@@ -1394,7 +1404,6 @@ int Obj_save_mesh(char *path, Mesh *m)
     
     return 0;
 }
-*/
 int Obj_load(char *path, Mesh *m)
 {
     int     *np=&(m->np);
@@ -2061,6 +2070,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
         case kDPVData:
             err=DPV_load_data(path,m);
             break;
+        case kCivetObjMesh:
+            err=CivetObj_load_mesh(path,m);
+            break;
         default:
             printf("ERROR: Input mesh format not recognised\n");
             return 1;
@@ -2180,6 +2192,9 @@ int saveMesh(char *path, Mesh *m, int oformat)
             break;
         case kVTKMesh:
             err=VTK_save_mesh(path,m);
+            break;
+        case kCivetObjMesh:
+            err=CivetObj_save_mesh(path,m);
             break;
         default:
             printf("ERROR: Output data format not recognised\n");
