@@ -226,7 +226,10 @@ float triangle_area(float3D p0, float3D p1, float3D p2)
     c=norm3D(sub3D(p2,p0));
     s=(a+b+c)/2.0;
     
-    area=sqrt(s*(s-a)*(s-b)*(s-c));
+    if(s*(s-a)*(s-b)*(s-c)<0)
+        area=0;
+    else
+        area=sqrt(s*(s-a)*(s-b)*(s-c));
     
     return area;
 }
@@ -243,15 +246,19 @@ float triangle_area(float3D p0, float3D p1, float3D p2)
 //             0 = disjoint (no intersect)
 //             1 = intersect in unique point I1
 //             2 = are in the same plane
+// code from:http://geometryalgorithms.com/Archive/algorithm_0105/algorithm_0105.htm#intersect_RayTriangle()
 int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
 {
     float3D *p=m->p;
     int3D   *t=m->t;
     int3D   T=t[i];
     float3D xx;
+    
     float3D u, v, n;             // triangle vectors
-    float3D dir,w0, w;               // ray vectors
-    float   r, a, b;             // params to calc ray-plane intersect
+    float3D dir,w0, w;           // ray vectors
+    double  r, a, b;             // params to calc ray-plane intersect
+    double  uu, uv, vv, wu, wv, D;
+    double  ss,tt;
 
     u=sub3D(p[T.b],p[T.a]);
     v=sub3D(p[T.c],p[T.a]);
@@ -279,7 +286,6 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
     xx = sca3D(dir,r);    // intersect point of ray and plane
 
     // is I inside T?
-    float    uu, uv, vv, wu, wv, D;
     uu = dot3D(u,u);
     uv = dot3D(u,v);
     vv = dot3D(v,v);
@@ -289,20 +295,18 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
     D = uv * uv - uu * vv;
 
     // get and test parametric coords
-    *c0 = (uv * wv - vv * wu) / D;
-    if(fabs(*c0)<EPSILON)
-        *c0=0;
-    if(fabs(1-*c0)<EPSILON)
-        *c0=1;
-    if (*c0 < 0.0 || *c0 > 1.0)        // I is outside T
-        return 0;
-
-    *c1 = (uv * wu - uu * wv) / D;
-    if(fabs(*c1)<EPSILON)
-        *c1=0;
-    if(fabs(1-*c1)<EPSILON)
-        *c1=1;
-    if (*c1 < 0.0 || (*c0 + *c1) > 1.0)  // I is outside T
+    ss = (uv * wv - vv * wu) / D;
+    if(fabs(ss)<EPSILON)   ss=0;
+    if(fabs(1-ss)<EPSILON) ss=1;
+    
+    tt = (uv * wu - uu * wv) / D;
+    if(fabs(tt)<EPSILON)   tt=0;
+    if(fabs(1-tt)<EPSILON) tt=1;
+    
+    *c0=ss;
+    *c1=tt;
+    
+    if (ss < 0.0 || tt < 0.0 || (ss + tt) > 1.0)  // I is outside T
         return 0;
 
     return 1;                      // I is in T
@@ -2000,6 +2004,24 @@ int DPV_load_data(char *path, Mesh *m)
 }
 
 #pragma mark -
+void printVertex(float3D p)
+{
+    printf("x: %g, y:%g, z:%g\n",p.x,p.y,p.z);
+}
+void printTriangle(int3D t)
+{
+    printf("a: %i, b:%i, c:%i\n",t.a,t.b,t.c);
+}
+void printTriangleAndVertices(Mesh *m, int i)
+{
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    printf("t %i, a: %i (%g, %g, %g), b:%i (%g, %g, %g), c:%i (%g, %g, %g)\n",
+        i,
+        t[i].a, p[t[i].a].x,p[t[i].a].y,p[t[i].a].z,
+        t[i].b, p[t[i].b].x,p[t[i].b].y,p[t[i].b].z,
+        t[i].c, p[t[i].c].x,p[t[i].c].y,p[t[i].c].z);
+}
 int freeMesh(Mesh *m)
 {
     if(verbose) printf("* freeMesh\n");
@@ -4181,47 +4203,169 @@ void normalise(Mesh *m)
         p[i]=x;
     }
 }
-int relaxMesh(char *path, Mesh *m0,int iformat)
+int relax(char *path, Mesh *m0,int iformat)
 {
-/*
     // m0: actual mesh
-    // m1: reference mesh
+    // m1: target mesh
     Mesh    *m1;
-    int     i,a,b;
-    float   sum,l1,l0,k=1;
-    float3D f,*p0,*p;
-    int     *t0;
+    int     i,j;
+    float3D a,b,c,o,a1,b1,c1;
+    int     *n;
+    int     niter;
+    float   J;
+    float3D *f,*g,*p0,*p1,zero={0,0,0};
+    int3D   *t;
+    float   area0,area1;
+    float   alpha,beta;
+    float   dot0,dot1;
+    float3D *s0,*s1,*nn0,*nn1,nn;
+    
+    niter=400000;
 
+    alpha=0.5;
+    beta=0.5;
+    
     m1=(Mesh*)calloc(1,sizeof(Mesh));
     loadMesh(path,m1,iformat);
     
     p0=m0->p;
     p1=m1->p;
+    t=m0->t;
     
-    // compute total force
-    sum=0;
+    printf("area source: %g\n",area(m0));
+    printf("area target: %g\n",area(m1));
+    
+    f=(float3D*)calloc(m0->np,sizeof(float3D));
+    g=(float3D*)calloc(m0->np,sizeof(float3D));
+    n=(int*)calloc(m0->np,sizeof(int));
+    
+    s0=(float3D*)calloc(m0->np,sizeof(float3D));
+    s1=(float3D*)calloc(m0->np,sizeof(float3D));
+    nn0=(float3D*)calloc(m0->np,sizeof(float3D));
+    nn1=(float3D*)calloc(m0->np,sizeof(float3D));
+    
     for(i=0;i<m0->nt;i++)
     {
-        t0=&(m0->t[i]);
-        for(j=0;j<3;j++)
+        n[t[i].a]++;
+        n[t[i].b]++;
+        n[t[i].c]++;
+    }
+    
+    // compute target smoothing direction
+    for(i=0;i<m0->nt;i++)
+    {
+        s1[t[i].a]=add3D(s1[t[i].a],add3D(p1[t[i].b],p1[t[i].c]));
+        s1[t[i].b]=add3D(s1[t[i].b],add3D(p1[t[i].c],p1[t[i].a]));
+        s1[t[i].c]=add3D(s1[t[i].c],add3D(p1[t[i].a],p1[t[i].b]));
+    }
+    for(i=0;i<m0->np;i++)
+        s1[i]=sub3D(p1[i],sca3D(s1[i],1/(float)(2*n[i])));
+    // compute target normal direction
+    for(i=0;i<m0->nt;i++)
+    {
+        nn=cross3D(sub3D(p1[t[i].b],p1[t[i].a]),sub3D(p1[t[i].c],p1[t[i].a]));
+        nn=sca3D(nn,1/norm3D(nn));
+        nn1[t[i].a]=add3D(nn1[t[i].a],nn);
+        nn1[t[i].b]=add3D(nn1[t[i].b],nn);
+        nn1[t[i].c]=add3D(nn1[t[i].c],nn);
+    }
+    for(i=0;i<m0->np;i++)
+        nn1[i]=sca3D(nn1[i],1/(float)n[i]);
+
+    // relax source mesh to target
+    for(j=0;j<niter;j++)
+    {
+        if(j*1000/niter>(j-1)*1000/niter)
         {
-            a=t[j];
-            b=t[(j+1)%3];
-            if(a<b])
+            //laplace(0.1,m0);
+            printf("%i%%\n",j*1000/niter);
+        }
+        // 1. Relax curvature
+            // compute smoothing direction
+        for(i=0;i<m0->nt;i++)
+        {
+            s0[t[i].a]=add3D(s0[t[i].a],add3D(p0[t[i].b],p0[t[i].c]));
+            s0[t[i].b]=add3D(s0[t[i].b],add3D(p0[t[i].c],p0[t[i].a]));
+            s0[t[i].c]=add3D(s0[t[i].c],add3D(p0[t[i].a],p0[t[i].b]));
+        }
+        for(i=0;i<m0->np;i++)
+            s0[i]=sub3D(p0[i],sca3D(s0[i],1/(float)(2*n[i])));
+            // compute normal direction
+        for(i=0;i<m0->nt;i++)
+        {
+            nn=cross3D(sub3D(p0[t[i].b],p0[t[i].a]),sub3D(p0[t[i].c],p0[t[i].a]));
+            nn=sca3D(nn,1/norm3D(nn));
+            nn0[t[i].a]=add3D(nn0[t[i].a],nn);
+            nn0[t[i].b]=add3D(nn0[t[i].b],nn);
+            nn0[t[i].c]=add3D(nn0[t[i].c],nn);
+        }
+        for(i=0;i<m0->np;i++)
+            nn0[i]=sca3D(nn0[i],1/(float)n[i]);
+            // compute dot product
+        for(i=0;i<m0->np;i++)
+        {
+            dot0=dot3D(s0[i],nn0[i]);
+            dot1=dot3D(s1[i],nn1[i]);
+            g[i]=sub3D(sca3D(nn0[i],dot1),sca3D(nn0[i],dot0));
+            //printf("d0:%g d1:%g\n",dot0,dot1);
+        }
+
+        // 2. Relax surface area (only along the normal direction)
+        for(i=0;i<m0->nt;i++)
+        {
+            a=p0[t[i].a];
+            b=p0[t[i].b];
+            c=p0[t[i].c];
+            o=sca3D(add3D(a,add3D(b,c)),1/3.0);
+            area0=triangle_area(a,b,c);
+            area1=triangle_area(p1[t[i].a],p1[t[i].b],p1[t[i].c]);
+            if(area0==0)
             {
-                l0=norm3D(sub3D(p0[a],p0[b]));
-                l1=norm3D(sub3D(p1[a],p1[b]));
-                f=sca3D(sub3D(p0[b],p0[a]),k*(1-l1/l0));
-                sum+=norm3D(f);//silly...
+                printf("denominator==0 at triangle %i\n",i);
+                continue;
             }
+            J=area1/area0;
+            a1=add3D(sca3D(sub3D(a,o),pow(J,0.5)),o);
+            b1=add3D(sca3D(sub3D(b,o),pow(J,0.5)),o);
+            c1=add3D(sca3D(sub3D(c,o),pow(J,0.5)),o);
+            
+            // printf("%g %g %g\n",area0,area1,triangle_area(a1,b1,c1));
+        
+            f[t[i].a]=add3D(f[t[i].a],sub3D(a1,a));
+            f[t[i].b]=add3D(f[t[i].b],sub3D(b1,b));
+            f[t[i].c]=add3D(f[t[i].c],sub3D(c1,c));
+        }
+        for(i=0;i<m0->np;i++)
+        {
+            f[i]=sca3D(f[i],1/(float)n[i]);
+            //f[i]=sca3D(nn0[i],dot3D(f[i],nn0[i]));
+        }
+    
+        // 3. Apply forces
+        for(i=0;i<m0->np;i++)
+        {
+            p0[i]=add3D(p0[i],sca3D(f[i],alpha));
+            p0[i]=add3D(p0[i],sca3D(g[i],beta));
+        }
+        
+        // 4. Reinitialise
+        for(i=0;i<m0->np;i++)
+        {
+            s0[i]=zero;
+            nn0[i]=zero;
+            f[i]=zero;
+            g[i]=zero;          
+            //printf("d0:%g d1:%g\n",dot0,dot1);
         }
     }
-    f=sca3D(f,m0->nt*3/2);
-    printf
-    
+ 
+     printf("area source: %g\n",area(m0));
+   
     // free m1
     freeMesh(m1);
-*/
+    free(f);
+    //free(g);
+    free(n);
     return 0;
 }
 int rotate(Mesh *m, float x, float y, float z)
@@ -4784,22 +4928,37 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     corresponding triangle and c0, c1 coordinates in m1, and store the coordinates
     of that point in m
 
-    m:          the mesh
+    m:          original mesh
     path_m1:    path to smoothed version of the mesh (for example, spherical)
     path_rm:    path to the smoothed version of the reference mesh (for example, spherical)
     */
-    Mesh    m1,rm;
+    Mesh    m1; // spherical version of mesh m
+    Mesh    rm; // spherical version of the target mesh 
     int     nt;
-    int3D   *t;
+    int3D   *t; // original mesh topology
     int     np_rm;
-    float3D *p,*p_m1,*p_rm,*tmp;
+    float3D *p;     // original mesh points
+    float3D *p_m1;  // spherical version of the original mesh
+    float3D *p_rm;  // spherical reference mesh
+    float3D *tmp;
     float   c0,c1;
-    int     i,j,result;
+    int     i,j,k,imindist,result;
     float3D n;
-    float   flipTest;
+    float   flipTest,mindist;
     
-    loadMesh(path_m1,&m1,0);
-    loadMesh(path_rm,&rm,0);
+    loadMesh(path_m1,&m1,0);    // load spherical version of the original mesh
+    loadMesh(path_rm,&rm,0);    // load spherical reference mesh
+    
+    // Check that m and m1 have the same number of vertices
+    if(m->np!=m1.np)
+    {
+        printf("ERROR: m1 does not have the same number of vertices as m\n");
+        return 1;
+    }
+    
+    // Centre spherical meshes m1 and rm
+    centre(&m1);
+    centre(&rm);
     
     // Check whether the meshes are properly oriented
     n=normal3D(0,&m1);
@@ -4822,38 +4981,57 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     nt=m->nt;
     t=m->t;
 
-    // Smoothed version of the actual mesh
+    // Spherical version of the original mesh
     p_m1=m1.p;
 
-    // Reference mesh
+    // Spherical reference mesh
     np_rm=rm.np;
     p_rm=rm.p;
     
+    // Interpolate coordinates on reference mesh
     tmp=(float3D*)calloc(np_rm,sizeof(float3D));
     for(i=0;i<np_rm;i++)
     {
-        if(verbose)
-            if(i%1000==0)
-                printf("%i\n",i);
+        if((int)(i*100/np_rm)>(int)((i-1)*100/np_rm))
+        {
+            printf("%i%% ",i*100/np_rm);
+            fflush(stdout);
+        }
         for(j=0;j<nt;j++)
         {
+            c0=c1=0;
             result=intersect_VectorTriangle(p_rm[i],j,&c0,&c1,&m1);
+/*            if(i==4932) {
+                printf("%g\t%g  \t",c0,c1);
+                printTriangleAndVertices(&m1,j);
+            }
+*/
             if(result==1)
             {
-                tmp[i]=p[t[j].a];
-                tmp[i]=add3D(tmp[i],sca3D(sub3D(p[t[j].b],p[t[j].a]),c0));
-                tmp[i]=add3D(tmp[i],sca3D(sub3D(p[t[j].c],p[t[j].a]),c1));
+                tmp[i]=sca3D(p[t[j].a],1-c0-c1);
+                tmp[i]=add3D(tmp[i],sca3D(p[t[j].b],c0));
+                tmp[i]=add3D(tmp[i],sca3D(p[t[j].c],c1));
                 break;
             }
         }
         if(j==nt)
         {
-            printf("ERROR: could not resample point %i on mesh %s\n",i,path_m1);
-            return 1;
+            //printVertex(p_rm[i]);
+            mindist=norm3D(sub3D(p_rm[i],p_m1[0]));
+            for(k=0;k<m->np;k++)
+                if(norm3D(sub3D(p_rm[i],p_m1[k]))<mindist)
+                {
+                    mindist=norm3D(sub3D(p_rm[i],p_m1[k]));
+                    imindist=k;
+                }
+            tmp[i]=p[imindist];
+            printf("\nWARNING: could not resample point %i, mapped it to closest vertex, %i\n",i,imindist);
+            //printVertex(p_m1[imindist]);
         }
     }
+    printf("\n");
     
-    // Free actual mesh (m)
+    // Free data in original mesh (m), i.e., vertices, triangles, etc.
     free(m->p);
     free(m->t);
     if(m->data)
@@ -4861,15 +5039,18 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     if(m->NT)
         free(m->NT);
     
-    // Free smooth version of the actual mesh (m1)
+    // Free spherical version of the actual mesh (m1)
     free(m1.p);
     free(m1.t);
     
-    // Reconfigure mesh with resampled data
+    // Reconfigure original mesh with resampled data
     m->p=tmp;
     m->t=rm.t;
-    m->np=rm.np;
+    m->np=np_rm;
     m->nt=rm.nt;
+    
+    if(verbose)
+        printf("resampled np: %i, nt: %i\n",m->np,m->nt);
     
     return 0;
 }
@@ -5185,7 +5366,7 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-relax")==0)
         {
-            relaxMesh(argv[++i],&mesh,iformat);
+            relax(argv[++i],&mesh,iformat);
         }
         else
         if(strcmp(argv[i],"-barycentricProjection")==0)    // print barycentric coordinates for each vertex of reference mesh
