@@ -45,7 +45,7 @@ char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 #endif
 
 #define pi 3.14159265358979323846264338327950288419716939927510
-#define EPSILON  0.000001 // small enough to avoid division overflow
+#define EPSILON  1e-8 // small enough to avoid division overflow
 #define min(a,b) (((a)<(b))?(a):(b))
 
 #define kMAXNETRIS          100
@@ -252,26 +252,45 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
     float3D *p=m->p;
     int3D   *t=m->t;
     int3D   T=t[i];
-    float3D xx;
+    double xx[3];
     
-    float3D u, v, n;             // triangle vectors
-    float3D dir,w0, w;           // ray vectors
+    double u[3], v[3], n[3];             // triangle vectors
+    double dir[3],w0[3], w[3];           // ray vectors
     double  r, a, b;             // params to calc ray-plane intersect
     double  uu, uv, vv, wu, wv, D;
     double  ss,tt;
 
-    u=sub3D(p[T.b],p[T.a]);
-    v=sub3D(p[T.c],p[T.a]);
-    n=cross3D(u,v);
-    if(norm3D(n)<=EPSILON)         // triangle is degenerate, do not deal with this case
-        return -1;
+    u[0]=p[T.b].x-p[T.a].x;
+    u[1]=p[T.b].y-p[T.a].y;
+    u[2]=p[T.b].z-p[T.a].z;
+    
+    v[0]=p[T.c].x-p[T.a].x;
+    v[1]=p[T.c].y-p[T.a].y;
+    v[2]=p[T.c].z-p[T.a].z;
+    
+    n[0]=u[1]*v[2]-u[2]*v[1];
+    n[1]=u[2]*v[0]-u[0]*v[2];
+    n[2]=u[0]*v[1]-u[1]*v[0];
 
-    dir=x;
-    w0 = sca3D(p[T.a],-1);
-    a = dot3D(n,w0);
-    b = dot3D(n,dir);
-    if (fabs(b) < EPSILON) {        // ray is parallel to triangle plane
-        if (a == 0)                 // ray lies in triangle plane
+    if(sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2])<1e-10)
+    {
+        //printf("%lf\n", sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]));        // triangle is degenerate, do not deal with this case
+        return -1;
+    }
+
+    dir[0]=x.x;
+    dir[1]=x.y;
+    dir[2]=x.z;
+    
+    w0[0] = -p[T.a].x;
+    w0[1] = -p[T.a].y;
+    w0[2] = -p[T.a].z;
+    
+    a = n[0]*w0[0]+n[1]*w0[1]+n[2]*w0[2]; //a = dot3D(n,w0);
+    b = n[0]*dir[0]+n[1]*dir[1]+n[2]*dir[2]; //b = dot3D(n,dir);
+    
+    if (b>-EPSILON && b<EPSILON) {        // ray is parallel to triangle plane
+        if (a == 0.0)                 // ray lies in triangle plane
             return 2;
         else
             return 0;              // ray disjoint from plane
@@ -283,28 +302,32 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
         return 0;                   // => no intersect
     // for a segment, also test if (r > 1.0) => no intersect
 
-    xx = sca3D(dir,r);    // intersect point of ray and plane
+    xx[0]=dir[0]*r;
+    xx[1]=dir[1]*r;
+    xx[2]=dir[2]*r; // intersect point of ray and plane
 
     // is I inside T?
-    uu = dot3D(u,u);
-    uv = dot3D(u,v);
-    vv = dot3D(v,v);
-    w = sub3D(xx,p[T.a]);
-    wu = dot3D(w,u);
-    wv = dot3D(w,v);
+    uu=u[0]*u[0]+u[1]*u[1]+u[2]*u[2];
+    uv=u[0]*v[0]+u[1]*v[1]+u[2]*v[2];
+    vv=v[0]*v[0]+v[1]*v[1]+v[2]*v[2];
+    w[0]=xx[0]-p[T.a].x;
+    w[1]=xx[1]-p[T.a].y;
+    w[2]=xx[2]-p[T.a].z;
+    wu=w[0]*u[0]+w[1]*u[1]+w[2]*u[2];
+    wv=w[0]*v[0]+w[1]*v[1]+w[2]*v[2];
     D = uv * uv - uu * vv;
 
     // get and test parametric coords
     ss = (uv * wv - vv * wu) / D;
-    if(fabs(ss)<EPSILON)   ss=0;
-    if(fabs(1-ss)<EPSILON) ss=1;
+    if(ss>-EPSILON && ss<EPSILON) ss=0;
+    if((1-ss)>-EPSILON && (1-ss)<EPSILON) ss=1;
     
     tt = (uv * wu - uu * wv) / D;
-    if(fabs(tt)<EPSILON)   tt=0;
-    if(fabs(1-tt)<EPSILON) tt=1;
+    if(tt>-EPSILON && tt<EPSILON)   tt=0;
+    if((1-tt)>-EPSILON && (1-tt)<EPSILON) tt=1;
     
-    *c0=ss;
-    *c1=tt;
+    *c0=(float)ss;
+    *c1=(float)tt;
     
     if (ss < 0.0 || tt < 0.0 || (ss + tt) > 1.0)  // I is outside T
         return 0;
@@ -2589,9 +2612,9 @@ int average(int N, char *paths[], Mesh *m)
     {
         loadMesh(paths[j],&m1,0);
         for(i=0;i<np;i++)
-            p[i]=add3D(p[i],(m->p)[i]);
-        free(m->p);
-        free(m->t);
+            p[i]=add3D(p[i],m1.p[i]);
+        free(m1.p);
+        free(m1.t);
     }
     for(i=0;i<np;i++)
         p[i]=sca3D(p[i],1/(float)N);
@@ -2729,11 +2752,41 @@ void centre(Mesh *m)
     }
     centre=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
     if(verbose)
-    {
         printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
-    }
     for(i=0;i<np;i++)
         p[i]=sub3D(p[i],centre);
+}
+void printBarycentre(Mesh *m)
+{
+    int     *np=&(m->np);
+    float3D *p=m->p;
+    int     i;
+    float3D centre={0,0,0};
+    
+    for(i=0;i<*np;i++)
+        centre=add3D(centre,p[i]);
+    centre=sca3D(centre,1/(float)*np);
+    printf("barycentre %g,%g,%g\n",centre.x,centre.y,centre.z);
+}
+void printCentre(Mesh *m)
+{
+    int     np=m->np;
+    float3D *p=m->p;
+    int     i;
+    float3D mi,ma,centre;
+    
+    mi=ma=p[0];
+    for(i=0;i<np;i++)
+    {
+        mi.x=(mi.x>p[i].x)?p[i].x:mi.x;
+        mi.y=(mi.y>p[i].y)?p[i].y:mi.y;
+        mi.z=(mi.z>p[i].z)?p[i].z:mi.z;
+        ma.x=(ma.x<p[i].x)?p[i].x:ma.x;
+        ma.y=(ma.y<p[i].y)?p[i].y:ma.y;
+        ma.z=(ma.z<p[i].z)?p[i].z:ma.z;
+    }
+    centre=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
+    printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
 }
 void checkOrientation(Mesh *m)
 {
@@ -4914,23 +4967,15 @@ void randverts(int nrv, Mesh *m)
 int resample(char *path_m1, char *path_rm, Mesh *m)
 {
     /*
-    ...I would like to resample the actual mesh to match a reference mesh,
-    for example, to average folds, or to average thickness data over many
-    meshes.
-    1. to average folds, i would need to find for each vertex of the reference
-    mesh, the corresponding position in a smooth version of the actual mesh,
-    next i would get the coordinates of that point in the folded version of
-    the actual mesh, and assign it to the reference.
-    2. same thing for scalar data, but instead of 3D coordinates, there would
-    be just one value per vertex.
-    so, i need, the actual mesh m, the smooth version of the actual mesh m1,
-    and the reference mesh rm. I'll have to find for each vertex in rm the
-    corresponding triangle and c0, c1 coordinates in m1, and store the coordinates
-    of that point in m
-
     m:          original mesh
-    path_m1:    path to smoothed version of the mesh (for example, spherical)
-    path_rm:    path to the smoothed version of the reference mesh (for example, spherical)
+    path_m1:    path to spherical version of m
+    path_rm:    path to the spherical version of the target mesh (reference mesh)
+
+    The function produces a mesh with the same geometry of m, but resampled with
+    the topology of the reference mesh rm.
+    rm is a spherical mesh, normally associated to a native mesh.
+    The landmarks over m1 (spherical version of m) and rm (spherical version of the
+    reference mesh) should have been previously made to correspond.
     */
     Mesh    m1; // spherical version of mesh m
     Mesh    rm; // spherical version of the target mesh 
@@ -4939,15 +4984,18 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     int     np_rm;
     float3D *p;     // original mesh points
     float3D *p_m1;  // spherical version of the original mesh
-    float3D *p_rm;  // spherical reference mesh
+    float3D *p_rm;  // spherical target (reference) mesh
     float3D *tmp;
     float   c0,c1;
     int     i,j,k,imindist,result;
     float3D n;
     float   flipTest,mindist;
+    int     non_mapped=0;
+    int case_deg,case_parl,case_disj;
+    case_deg=case_parl=case_disj=0;
     
     loadMesh(path_m1,&m1,0);    // load spherical version of the original mesh
-    loadMesh(path_rm,&rm,0);    // load spherical reference mesh
+    loadMesh(path_rm,&rm,0);    // load spherical target mesh
     
     // Check that m and m1 have the same number of vertices
     if(m->np!=m1.np)
@@ -4965,47 +5013,48 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     flipTest=dot3D(m1.p[m1.t[0].a],n);
     if(flipTest<0)
     {
-        printf("ERROR: m1 is mis-oriented\n");
+        printf("ERROR: m1 is mis-oriented. Path: %s\n",path_m1);
         return 1;
     }
     n=normal3D(0,&rm);
     flipTest=dot3D(rm.p[rm.t[0].a],n);
     if(flipTest<0)
     {
-        printf("ERROR: rm is mis-oriented\n");
+        printf("ERROR: rm is mis-oriented. Path: %s\n",path_rm);
         return 1;
     }
     
-    // Actual mesh
+    // Points and triangles of the original mesh
     p=m->p;
     nt=m->nt;
     t=m->t;
 
-    // Spherical version of the original mesh
+    // Points of the spherical version of the original mesh
     p_m1=m1.p;
 
-    // Spherical reference mesh
+    // Points of the target spherical mesh (reference)
     np_rm=rm.np;
     p_rm=rm.p;
     
     // Interpolate coordinates on reference mesh
-    tmp=(float3D*)calloc(np_rm,sizeof(float3D));
+    tmp=(float3D*)calloc(np_rm,sizeof(float3D));    // the new points are stored in tmp
     for(i=0;i<np_rm;i++)
     {
+        // display progress
+        if(verbose)
         if((int)(i*100/np_rm)>(int)((i-1)*100/np_rm))
         {
             printf("%i%% ",i*100/np_rm);
             fflush(stdout);
         }
+        
+        // look for a triangle in the spherical original mesh containing
+        // point i of the target mesh
         for(j=0;j<nt;j++)
         {
             c0=c1=0;
             result=intersect_VectorTriangle(p_rm[i],j,&c0,&c1,&m1);
-/*            if(i==4932) {
-                printf("%g\t%g  \t",c0,c1);
-                printTriangleAndVertices(&m1,j);
-            }
-*/
+
             if(result==1)
             {
                 tmp[i]=sca3D(p[t[j].a],1-c0-c1);
@@ -5013,7 +5062,15 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
                 tmp[i]=add3D(tmp[i],sca3D(p[t[j].c],c1));
                 break;
             }
+            
+            if(result==-1) case_deg++;
+            if(result==0) case_disj++;
+            if(result==2) case_parl++;
         }
+        
+        // if j==nt no triangle was found in the spherical original mesh that contained
+        // point i. As an approximation, pick the closest point in the spherical original
+        // mesh.
         if(j==nt)
         {
             //printVertex(p_rm[i]);
@@ -5025,11 +5082,15 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
                     imindist=k;
                 }
             tmp[i]=p[imindist];
-            printf("\nWARNING: could not resample point %i, mapped it to closest vertex, %i\n",i,imindist);
+            non_mapped++;
+            //printf("\nWARNING: could not resample point %i, mapped it to closest vertex, %i\n",i,imindist);
             //printVertex(p_m1[imindist]);
         }
     }
-    printf("\n");
+    if(verbose)
+        printf("\n");
+    if(non_mapped) printf("\nWARNING: %i vertices could not be resampled and were mapped to the closest vertex. Reference mesh: %s\n",non_mapped,path_rm);
+    if(verbose) printf("degenerate: %i\ndisjoint: %i\nparallel: %i\n",case_deg,case_disj,case_parl);
     
     // Free data in original mesh (m), i.e., vertices, triangles, etc.
     free(m->p);
@@ -5195,6 +5256,8 @@ void printHelp(void)
     -h                                               Help\n\
     -icurv number_of_iterations                      Integrated curvature\n\
     -isolatedVerts                                   Find isolated vertices\n\
+    -printCentre                                     Prints the coordinates of the centre of the mesh\n\
+    -printBarycentre                                 Prints the coordinates of the barycentre of the mesh\n\
     -laplaceSmooth lambda number_of_iterations       Laplace smoothing\n\
     -lissencephalic                                  Smooth valleys and hills, not the coast\n\
     -level level_value                               Adds new vertices (and triangles) to the\n\
@@ -5448,6 +5511,16 @@ int main(int argc, char *argv[])
             l=atof(argv[++i]);
             N=atoi(argv[++i]);
             smoothData(&mesh,l,N);
+        }
+        else
+        if(strcmp(argv[i],"-printCentre")==0)
+        {
+            printCentre(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-printBarycentre")==0)
+        {
+            printBarycentre(&mesh);
         }
         else
         if(strcmp(argv[i],"-euler")==0)
