@@ -18,7 +18,7 @@ char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
     gcc -Wall meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
 
     On Unix:
-    gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut
+    gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut -lm
 
     On Windows:
     gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
@@ -32,14 +32,11 @@ char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 #include <unistd.h>
 
 // OpenGL libraries
-#define __MacOSX__
-//#define __UnixOrWindows__
-#ifdef __MacOSX__
+#ifdef __APPLE__
   #include <OpenGL/gl.h>
   #include <OpenGL/glu.h>
   #include <GLUT/glut.h>
-#endif
-#ifdef __UnixOrWindows__
+#else
   #include <GL/gl.h>
   #include <GL/glut.h>
 #endif
@@ -2397,7 +2394,7 @@ void absgi(Mesh *m)
     
     // log(absGI)    = log(Sx)-2log(Vx)/3-log(36π)/3
     // absGI        = Sx/(Vx^(2/3)(36π)^(1/3))
-    logAbsGI=log(S)-2*log(V)/3.0-log(36*pi)/3.0;
+    logAbsGI=log(S)-2*log(V)/3.0-log(36*M_PI)/3.0;
     
     printf("absgi: %f\n",exp(logAbsGI));
 }
@@ -2451,9 +2448,9 @@ void align(Mesh *m, char *path)
     srand(0); // seed the random number generator
     for(j=0;j<niter;j++)
     {
-        x=2*pi*rand()/(float)RAND_MAX;
-        y=2*pi*rand()/(float)RAND_MAX;
-        z=2*pi*rand()/(float)RAND_MAX;
+        x=2*M_PI*rand()/(float)RAND_MAX;
+        y=2*M_PI*rand()/(float)RAND_MAX;
+        z=2*M_PI*rand()/(float)RAND_MAX;
 
         M[0]=cos(z)*cos(y);
         M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
@@ -2485,18 +2482,18 @@ void align(Mesh *m, char *path)
     srand(0);
     for(j=0;j<iminerr+1;j++)
     {
-        x0=2*pi*rand()/(float)RAND_MAX;
-        y0=2*pi*rand()/(float)RAND_MAX;
-        z0=2*pi*rand()/(float)RAND_MAX;
+        x0=2*M_PI*rand()/(float)RAND_MAX;
+        y0=2*M_PI*rand()/(float)RAND_MAX;
+        z0=2*M_PI*rand()/(float)RAND_MAX;
     }
 
     iminerr=0;
     srand(0); // seed the random number generator
     for(j=0;j<niter;j++)
     {
-        x=x0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
-        y=y0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
-        z=z0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+        x=x0+(10/M_PI)-(20/M_PI)*rand()/(float)RAND_MAX;
+        y=y0+(10/M_PI)-(20/M_PI)*rand()/(float)RAND_MAX;
+        z=z0+(10/M_PI)-(20/M_PI)*rand()/(float)RAND_MAX;
 
         M[0]=cos(z)*cos(y);
         M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
@@ -2528,12 +2525,12 @@ void align(Mesh *m, char *path)
     srand(0);
     for(j=0;j<iminerr+1;j++)
     {
-        x=x0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
-        y=y0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
-        z=z0+(10/pi)-(20/pi)*rand()/(float)RAND_MAX;
+        x=x0+(10/M_PI)-(20/M_PI)*rand()/(float)RAND_MAX;
+        y=y0+(10/M_PI)-(20/M_PI)*rand()/(float)RAND_MAX;
+        z=z0+(10/M_PI)-(20/M_PI)*rand()/(float)RAND_MAX;
     }
 
-    printf("x: %g, y: %g, z: %g\n",x*180/pi,y*180/pi,z*180/pi);
+    printf("x: %g, y: %g, z: %g\n",x*180/M_PI,y*180/M_PI,z*180/M_PI);
 
     M[0]=cos(z)*cos(y);
     M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
@@ -3444,7 +3441,7 @@ int fixSmall(Mesh *m)
                 x=sca3D(x,1/norm3D(x));
                 y=sub3D(p[T[(k+2)%3]],p[T[k]]); // vector c-a
                 y=sca3D(y,1/norm3D(y));
-                angle=acos(dot3D(x,y))*180/pi;
+                angle=acos(dot3D(x,y))*180/M_PI;
                 if(angle>150)
                 {
                     printf("Vertex %i makes a triangle with an angle of %g degrees. Fixing it.\n",T[k],angle);
@@ -4429,9 +4426,9 @@ int rotate(Mesh *m, float x, float y, float z)
     float   M[9];
     float3D *p=m->p,pp;
     
-    x*=pi/180.0;
-    y*=pi/180.0;
-    z*=pi/180.0;
+    x*=M_PI/180.0;
+    y*=M_PI/180.0;
+    z*=M_PI/180.0;
     
     M[0]=cos(z)*cos(y);
     M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
@@ -4699,8 +4696,8 @@ int subdivide(Mesh *m)
     // update position of old vertices
     for(i=0;i<np;i++)
     {
-        // beta=(4-2cos(2pi/n))/(9n)
-        beta=(4-2*cos(2*pi/n[i]))/(9*n[i]);
+        // beta=(4-2cos(2M_PI/n))/(9n)
+        beta=(4-2*cos(2*M_PI/n[i]))/(9*n[i]);
         
         // p(k+1)=(1-n*beta)p(k) + beta*sum(neighbours)
         newp[i]=add3D(sca3D(p[i],1-n[i]*beta),sca3D(sump[i],beta));
