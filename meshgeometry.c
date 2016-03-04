@@ -1436,6 +1436,7 @@ int Obj_load(char *path, Mesh *m)
     int3D   **t=&(m->t);
     FILE    *f;
     char    str[1024],s[16];
+    int     n;
     
     f=fopen(path,"r");
     *np=*nt=0;
@@ -1468,7 +1469,11 @@ int Obj_load(char *path, Mesh *m)
         }
         if(strcmp(s,"f")==0)
         {
-            sscanf(str,"f %i %i %i ",&((*t)[*nt].a),&((*t)[*nt].b),&((*t)[*nt].c));
+            n=sscanf(str,"f %i %i %i ",&((*t)[*nt].a),&((*t)[*nt].b),&((*t)[*nt].c));
+            if(n<3)
+                n=sscanf(str,"f %i/%*i %i/%*i %i/%*i ",&((*t)[*nt].a),&((*t)[*nt].b),&((*t)[*nt].c));
+            if(n<3)
+                n=sscanf(str,"f %i//%*i %i//%*i %i//%*i ",&((*t)[*nt].a),&((*t)[*nt].b),&((*t)[*nt].c));
             (*t)[*nt].a--;
             (*t)[*nt].b--;
             (*t)[*nt].c--;
@@ -1478,7 +1483,6 @@ int Obj_load(char *path, Mesh *m)
     if(verbose)
         printf("Read %i vertices and %i triangles\n",*np,*nt);
 
-    // READ TRIANGLES
     return 0;
 }
 int Obj_save_mesh(char *path, Mesh *m)
@@ -2752,38 +2756,6 @@ void centre(Mesh *m)
         printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
     for(i=0;i<np;i++)
         p[i]=sub3D(p[i],centre);
-}
-void printBarycentre(Mesh *m)
-{
-    int     *np=&(m->np);
-    float3D *p=m->p;
-    int     i;
-    float3D centre={0,0,0};
-    
-    for(i=0;i<*np;i++)
-        centre=add3D(centre,p[i]);
-    centre=sca3D(centre,1/(float)*np);
-    printf("barycentre %g,%g,%g\n",centre.x,centre.y,centre.z);
-}
-void printCentre(Mesh *m)
-{
-    int     np=m->np;
-    float3D *p=m->p;
-    int     i;
-    float3D mi,ma,centre;
-    
-    mi=ma=p[0];
-    for(i=0;i<np;i++)
-    {
-        mi.x=(mi.x>p[i].x)?p[i].x:mi.x;
-        mi.y=(mi.y>p[i].y)?p[i].y:mi.y;
-        mi.z=(mi.z>p[i].z)?p[i].z:mi.z;
-        ma.x=(ma.x<p[i].x)?p[i].x:ma.x;
-        ma.y=(ma.y<p[i].y)?p[i].y:ma.y;
-        ma.z=(ma.z<p[i].z)?p[i].z:ma.z;
-    }
-    centre=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
-    printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
 }
 void checkOrientation(Mesh *m)
 {
@@ -4253,6 +4225,38 @@ void normalise(Mesh *m)
         p[i]=x;
     }
 }
+void printBarycentre(Mesh *m)
+{
+    int     *np=&(m->np);
+    float3D *p=m->p;
+    int     i;
+    float3D centre={0,0,0};
+    
+    for(i=0;i<*np;i++)
+        centre=add3D(centre,p[i]);
+    centre=sca3D(centre,1/(float)*np);
+    printf("barycentre %g,%g,%g\n",centre.x,centre.y,centre.z);
+}
+void printCentre(Mesh *m)
+{
+    int     np=m->np;
+    float3D *p=m->p;
+    int     i;
+    float3D mi,ma,centre;
+    
+    mi=ma=p[0];
+    for(i=0;i<np;i++)
+    {
+        mi.x=(mi.x>p[i].x)?p[i].x:mi.x;
+        mi.y=(mi.y>p[i].y)?p[i].y:mi.y;
+        mi.z=(mi.z>p[i].z)?p[i].z:mi.z;
+        ma.x=(ma.x<p[i].x)?p[i].x:ma.x;
+        ma.y=(ma.y<p[i].y)?p[i].y:ma.y;
+        ma.z=(ma.z<p[i].z)?p[i].z:ma.z;
+    }
+    centre=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
+    printf("centre %g,%g,%g\n",centre.x,centre.y,centre.z);
+}
 int relax(char *path, Mesh *m0,int iformat)
 {
     // m0: actual mesh
@@ -5273,6 +5277,8 @@ void printHelp(void)
     -normal                                          Mesh normal vectors\n\
     -normalise                                       Place all vertices at distance 100 from\n\
                                                        the origin\n\
+    -printBarycentre                                 Displays the coordinates of the average of all mesh vertices\n\
+    -printCentre                                     Displays the coordinates of the point at half width, length and height of the mesh\n\
     -randverts number_of_vertices                    Generate homogeneously distributed\n\
                                                        random vertices over the mesh\n\
     -relax filename                                  Relax current mesh to mesh at filename\n\
