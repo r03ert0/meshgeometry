@@ -50,6 +50,7 @@ Geometry modification                            |Description
 -stereographic                                   |Stereographic projection
 -subdivide                                       |Subdivide the mesh with one iteration of Kobbelt's sqrt(3) algorithm
 -taubinSmooth lambda mu number_of_iterations     |Taubin Smoothing
+-translate x y z                                 |Translate mesh by x, y, and z.
 -lissencephalic                                  |Smooth valleys and hills, not the coast
 -normal                                          |Mesh normal vectors
 
