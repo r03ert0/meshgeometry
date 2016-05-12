@@ -1095,7 +1095,7 @@ int BrainVisa_save_mesh(char *path, Mesh *m)
 int Text_load(char *path, Mesh *m)
 {
     int     *np=&(m->np);
-    int     *nt=&(m->nt);
+    int     *nt=&(m->nt),nt_tmp;
     float3D **p=&(m->p);
     int3D   **t=&(m->t);
     float   **data=&(m->data);
@@ -1108,16 +1108,17 @@ int Text_load(char *path, Mesh *m)
     
     // READ HEADER
     fgets(str,511,f);
-    sscanf(str," %i %i ",np,nt);
+    sscanf(str," %i %i ",np,&nt_tmp);
     
-    if(*nt==1)    // mesh data file, dimension 1
+    if(nt_tmp==1)    // mesh data file, dimension 1
     {
         *data=(float*)calloc(*np,sizeof(float));
         if(data==NULL){printf("ERROR: Not enough memory for mesh data\n");return 1;}
         for(i=0;i<*np;i++)
             fscanf(f," %f ",&((*data)[i]));    
         if(verbose)
-            printf("Read %i values\n",*np);
+            printf("Read %i data values\n",*np);
+
     }
     else
     {   // mesh file
@@ -1130,6 +1131,7 @@ int Text_load(char *path, Mesh *m)
             printf("Read %i vertices\n",*np);
     
         // READ TRIANGLES
+        *nt=nt_tmp;
         *t = (int3D*)calloc(*nt,sizeof(int3D));
         if(*t==NULL){printf("ERROR: Not enough memory for mesh triangles\n"); return 1;}
         for(i=0;i<*nt;i++)
@@ -2733,6 +2735,16 @@ void barycentre(Mesh *m)
     }
     for(i=0;i<*np;i++)
         p[i]=sub3D(p[i],centre);
+}
+void translate(float a,float b,float c,Mesh *m)
+{
+    int     np=m->np;
+    float3D *p=m->p;
+    int     i;
+    float3D new_centre;
+    new_centre=(float3D){a,b,c};
+    for(i=0;i<np;i++)
+        p[i]=add3D(p[i],new_centre);
 }
 void centre(Mesh *m)
 {
@@ -4544,15 +4556,19 @@ int smoothData(Mesh *m,float l,int niter)
             tmp[t[i].c]+=data[t[i].a]+data[t[i].b];
         }
         for(i=0;i<np;i++)
-            tmp[i]/=(float)ntmp[i];
-        for(i=0;i<np;i++)
-        {
-            data[i]=data[i]*(1-l)+tmp[i]*l;
-            tmp[i]=0;
-        }
+            if(ntmp[i]>0)
+            {
+                //printf("%i. %i\n",i,ntmp[i]);
+                tmp[i]/=(float)ntmp[i];
+                data[i]=data[i]*(1-l)+tmp[i]*l;
+                tmp[i]=0;
+            }
+            else
+                data[i]=0;
     }
     free(tmp);
     free(ntmp);
+
     
     return 0;
 }
@@ -5293,6 +5309,7 @@ void printHelp(void)
     -subdivide                                       Subdivide the mesh using 1 iteration of Kobbelt's sqrt(3) algorithm\n\
     -tangentLaplace lambda number_of_iterations      Laplace smoothing tangential to the mesh surface\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
+    -translate x y z                                 Translatory motion x,y,z\n\
     -smoothData lambda number_of_iterations          Laplace smoothing of data, lambda=0 -> no smoothing, lambda=1 -> each vertex value to neighbour's average\n\
     -threshold value 0:down/1:up                     Threshold texture data\n\
     -tris                                            Display number of triangles\n\
@@ -5616,6 +5633,12 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-barycentre")==0)
         {
             barycentre(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-translate")==0)    // translate x, y, z
+        {
+        translate(atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]),&mesh);
+        i+=3;
         }
         else
         if(strcmp(argv[i],"-centre")==0)
