@@ -156,6 +156,23 @@ float determinant(float3D a, float3D b, float3D c)
     return D;
 }
 
+int multMatVec(float *m, float3D v, float3D *result)
+{
+    /*
+    Multiplies the vector v by the 4x4 matrix m, and puts the result into result
+    */
+    float3D r;
+    r.x= m[0]*v.x +m[1]*v.y +m[2]*v.z+m[3];
+    r.y= m[4]*v.x +m[5]*v.y +m[6]*v.z+m[7];
+    r.z= m[8]*v.x +m[9]*v.y +m[10]*v.z+m[11];
+    result->x=r.x;
+    result->y=r.y;
+    result->z=r.z;
+    
+    return 0;
+}
+
+
 #pragma mark -
 #pragma mark [ Utilities ]
 int     endianness;
@@ -2622,6 +2639,19 @@ int average(int N, char *paths[], Mesh *m)
     for(i=0;i<np;i++)
         p[i]=sca3D(p[i],1/(float)N);
 
+    return 0;
+}
+int applyMatrix(float *M, Mesh *m)
+{
+    /*
+    Multiply all mesh vertices by the 4x4 matrix m
+    */
+    int i;
+    for(i=0;i<m->np;i++)
+    {
+        multMatVec(M,m->p[i],&(m->p[i]));
+    }
+    
     return 0;
 }
 int barycentricProjection(char *path_rm, Mesh *m)
@@ -5289,6 +5319,7 @@ void printHelp(void)
     -mean                                            Mean data value\n\
     -min                                             Minimum data value\n\
     -mirror coord                                    Mirror vertices in the coordinate 'coord' relative to the mesh's barycentre\n\
+    -applyMatrix m11,m12,...,m34                     Transform the vertex coordinates by multiplying them by a 4x4 matrix (the last row is set to 0,0,0,1)\n\
     -nonmanifold                                     Detect vertices in edges with more than 2 triangles\n\
     -normal                                          Mesh normal vectors\n\
     -normalise                                       Place all vertices at distance 100 from\n\
@@ -5433,6 +5464,17 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-add")==0)
         {
             addMesh(argv[++i],&mesh,iformat);
+        }
+        else
+        if(strcmp(argv[i],"-applyMatrix")==0)
+        {
+            char *str=argv[++i];
+            float m[16]={0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1};
+            sscanf(str," %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f ",
+                &(m[0]),&(m[1]),&(m[2]),&(m[3]),
+                &(m[4]),&(m[5]),&(m[6]),&(m[7]),
+                &(m[8]),&(m[8]),&(m[10]),&(m[11]));
+            applyMatrix(m,&mesh);
         }
         else
         if(strcmp(argv[i],"-align")==0)
