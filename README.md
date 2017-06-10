@@ -88,4 +88,4 @@ Extension                                        |Description
 .float                                           |Raw float data
 .txt1                                            |RT's data format
 .bin                                             |n-e-r-v-o-u-s system web binary mesh
-.wrl, .obj, .ply, .stl, .smesh, .off, .vtk       |Other mesh formats
+.wrl, .obj, .ply, .stl, .smesh, .off, .vtk, .gii |Other mesh formats
