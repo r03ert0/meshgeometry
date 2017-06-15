@@ -5326,7 +5326,57 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     
     return 0;
 }
-int uniform_sortVertices(const void *a, const void *b)
+
+/*
+    re-index the mesh's triangles so that they are sorted along the x axis
+*/
+int sortTrianglesFunction(const void *a, const void *b)
+{
+	float3D	v1=*(float3D*)a;
+	float3D	v2=*(float3D*)b;
+
+	if(v1.x==v2.x)
+	{
+		return 0;
+	}
+	else
+	{
+		if(v1.x<v2.x)
+			return -1;
+		else
+			return	1;
+	}
+}
+void sortTriangles(Mesh *m)
+{
+    int     nt=m->nt;
+    float3D *p=m->p;
+    int3D   *t=m->t,*t2;
+    float3D   *x;
+    int     i;
+    
+    x=(float3D*)calloc(nt,sizeof(float3D));
+    for(i=0;i<nt;i++)
+    {
+        x[i].x=(p[t[i].a].x+p[t[i].b].x+p[t[i].c].x)/3.0;
+        x[i].y=i;
+    }
+    
+    // sort vertices per cos(angle)
+    qsort(x,nt,sizeof(float3D),sortTrianglesFunction);
+    
+    t2=(int3D*)calloc(nt,sizeof(int3D));
+
+    // redistribute uniformly the triangles along the x axis
+    for(i=0;i<nt;i++)
+        t2[i]=t[(int)round(x[i].y)];
+    for(i=0;i<nt;i++)
+        t[i]=t2[i];
+
+    free(x);
+    free(t2);
+}
+int sortVerticesFunction(const void *a, const void *b)
 {
 	float3D	v1=*(float3D*)a;
 	float3D	v2=*(float3D*)b;
@@ -5346,11 +5396,11 @@ int uniform_sortVertices(const void *a, const void *b)
 void uniform(Mesh *m)
 {
     float3D *p=m->p,p0;
-    int np=m->np;
+    int     np=m->np;
     float3D *a,d,v,ma,mi,c;
-    int niter=2000,maxiter;
-    int i,j;
-    float x,s,ss,std,maxstd,r1,r2,n;
+    int     niter=2000,maxiter;
+    int     i,j;
+    float   x,s,ss,std,maxstd,r1,r2,n;
     
     mi=ma=p[0];
     for(i=0;i<np;i++)
@@ -5416,7 +5466,7 @@ void uniform(Mesh *m)
     printf("angle mean=%g, angle s.d.=%g\n",s/(float)np,std);
     
     // sort vertices per cos(angle)
-    qsort(a,np,sizeof(float3D),uniform_sortVertices);
+    qsort(a,np,sizeof(float3D),sortVerticesFunction);
 
     // redistribute uniformly the vertices along the axis d
     for(i=0;i<np;i++)
@@ -5502,6 +5552,7 @@ void printHelp(void)
     -rotate x y z                                    Rotate with angles x, y and z in degrees\n\
     -scale scale_value                               Multiply each vertex by \"scale\"\n\
     -size                                            Display mesh dimensions\n\
+    -sortTriangles                                   Sort the triangles in the mesh file along the x axis\n\
     -stereographic                                   Stereographic projection\n\
     -subdivide                                       Subdivide the mesh using 1 iteration of Kobbelt's sqrt(3) algorithm\n\
     -tangentLaplace lambda number_of_iterations      Laplace smoothing tangential to the mesh surface\n\
@@ -5793,6 +5844,11 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-scale")==0)
         {
             scale(atof(argv[++i]),&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-sortTriangles")==0)
+        {
+            sortTriangles(&mesh);
         }
         else
         if(strcmp(argv[i],"-lissencephalic")==0)

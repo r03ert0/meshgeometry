@@ -47,6 +47,7 @@ Geometry modification                            |Description
 -removeIsolatedVerts                             |Removes isolated vertices in the mesh (if present)
 -rotate x y z                                    |Rotate with angles x, y and z (in degrees)
 -scale scale_value                               |Multiply each vertex by 'scale'
+-sortTriangles                                   |Sort the triangles in the mesh file along the x axis
 -stereographic                                   |Stereographic projection
 -subdivide                                       |Subdivide the mesh with one iteration of Kobbelt's sqrt(3) algorithm
 -taubinSmooth lambda mu number_of_iterations     |Taubin Smoothing
