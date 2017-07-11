@@ -84,7 +84,7 @@ Extension                                        |Description
 -------------------------------------------------|---------------------------
 .orig, .pial, .white, .inflated, .sphere, .reg   |Freesurfer meshes
 .curv, .sulc, .sratio                            |Freesurfer data
-.mesh                                            |BrainVisa meshe
+.mesh                                            |BrainVisa mesh
 .txt                                             |RT's mesh plain text format
 .float                                           |Raw float data
 .txt1                                            |RT's data format
