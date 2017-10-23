@@ -3467,7 +3467,7 @@ int fixnonmanifold_tris(Mesh *mesh)
 	int3D   *t=mesh->t,t1;
 	int     nt=mesh->nt;
 	int     np=mesh->np;
-	int     np1;
+	/* int     np1; */
 	NTriRec *ne;
 	float3D *p1,*p=mesh->p;
 	
@@ -3482,7 +3482,7 @@ int fixnonmanifold_tris(Mesh *mesh)
 	p1=(float3D*)calloc(np+found*3,sizeof(float3D));
 	for(i=0;i<np;i++)
 	    p1[i]=p[i];
-	np1=np;
+	/* np1=np; */
 
     neighbours(mesh);
     ne=mesh->NT;
@@ -4042,12 +4042,11 @@ int lissencephalic(int iter, Mesh *m)
  quite working, though.
 */
 {
-    int     np,np0;
+    int     np;
     float3D *tmp,*p;
     float   *data=m->data;
     int     i,j,k;
     
-    np0=m->np;
     level(0,m);
     np=m->np;
     p=m->p;
@@ -4935,7 +4934,7 @@ int tangentLaplace(float lambda, Mesh *m)
     int     *nt=&(m->nt);
     float3D *p=m->p;
     int3D   *t=m->t;
-    float3D *tmp,x,dx,*tmp1,nn;
+    float3D *tmp,dx,*tmp1,nn;
     int     *n;
     int     i;
     
@@ -4958,7 +4957,6 @@ int tangentLaplace(float lambda, Mesh *m)
         if(n[i]==0)
         {
             printf("WARNING: isolated vertex %i\n",i);
-            x=tmp[i];
         }
         else
             tmp[i]=sca3D(tmp[i],1/(float)n[i]);
