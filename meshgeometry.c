@@ -19,7 +19,7 @@ char version[]="meshgeometry, version 9, roberto toro, 10 June 2017"; // add gii
     gcc -Wall meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
 
     On Unix:
-    gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut -lm
+    gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut -lm -lz
 
     On Windows:
     gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
