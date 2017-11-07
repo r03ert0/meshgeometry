@@ -6,7 +6,8 @@
 //char version[]="meshgeometry, version 6, roberto toro, 10 November 2012"; // added randomverts, help, centre, normalise, normal, verbose, off mesh format (load and save), added to github
 //char version[]="meshgeometry, version 7, roberto toro, 17 Decembre 2014"; // vtk support
 //char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
-char version[]="meshgeometry, version 9, roberto toro, 10 June 2017"; // add gii reader
+//char version[]="meshgeometry, version 9, roberto toro, 10 June 2017"; // add gii reader
+char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add asc reader/writer
 
 /*
     To use:
@@ -68,6 +69,7 @@ char version[]="meshgeometry, version 9, roberto toro, 10 June 2017"; // add gii
 #define kDPVData            18
 #define kCivetObjMesh       19
 #define kGiiMesh            20
+#define kAscMesh            21
 
 typedef struct
 {
@@ -375,93 +377,93 @@ void neighbours(Mesh *m)
         ((*NT)[t[i].c]).t[((*NT)[t[i].c]).n++] = i;
     }
 }
-#define TINY 1.0e-10	// A small number.
-#define NMAX 500000  	//Maximum allowed number of function evaluations.
+#define TINY 1.0e-10    // A small number.
+#define NMAX 500000     //Maximum allowed number of function evaluations.
 #define SWAP(a,b) {swap=(a);(a)=(b);(b)=swap;}
 float amotry(float *p, float y[], float psum[], int ndim,float (*funk)(float []), int ihi, float fac)
 {
-	int		j;
-	float	fac1,fac2,ytry,*ptry;
+    int     j;
+    float   fac1,fac2,ytry,*ptry;
 
-	ptry=(float*)calloc(ndim,sizeof(float));
-	fac1=(1.0-fac)/ndim;
-	fac2=fac1-fac;
-	for (j=0;j<ndim;j++)
-		ptry[j]=psum[j]*fac1-p[ndim*ihi+j]*fac2;
-	ytry=(*funk)(ptry);		// Evaluate the function at the trial point.
-	if (ytry < y[ihi])
-	{
-		// If it's better than the highest, then replace the highest.
-		y[ihi]=ytry;
-		for (j=0;j<ndim;j++)
-		{
-			psum[j] += ptry[j]-p[ndim*ihi+j];
-			p[ndim*ihi+j]=ptry[j];
-		}
-	}
-	free(ptry);
-	return ytry;
+    ptry=(float*)calloc(ndim,sizeof(float));
+    fac1=(1.0-fac)/ndim;
+    fac2=fac1-fac;
+    for (j=0;j<ndim;j++)
+        ptry[j]=psum[j]*fac1-p[ndim*ihi+j]*fac2;
+    ytry=(*funk)(ptry); // Evaluate the function at the trial point.
+    if (ytry < y[ihi])
+    {
+        // If it's better than the highest, then replace the highest.
+        y[ihi]=ytry;
+        for (j=0;j<ndim;j++)
+        {
+            psum[j] += ptry[j]-p[ndim*ihi+j];
+            p[ndim*ihi+j]=ptry[j];
+        }
+    }
+    free(ptry);
+    return ytry;
 }
 #define GET_PSUM  for(j=0;j<ndim;j++){for(sum=0.0,i=0;i<mpts;i++)sum+=p[ndim*i+j];psum[j]=sum;}
 void amoeba(float *p, float y[], int ndim, float ftol,float (*funk)(float []),int *nfunk)
 // Multidimensional minimization of the function funk(x) where x[0..ndim-1] is a vector in ndim
 // dimensions, by the downhill simplex method of Nelder and Mead. From Numerical Recipes in C
 {
-	int 	i,ihi,ilo,inhi,j,mpts=ndim+1;
-	float    rtol,sum,swap,ysave,ytry,*psum;
+    int     i,ihi,ilo,inhi,j,mpts=ndim+1;
+    float   rtol,sum,swap,ysave,ytry,*psum;
 
-	psum=(float*)calloc(ndim,sizeof(float));
-	*nfunk=0;
-	GET_PSUM
-	for (;;)
-	{
-		ilo=0;
-		ihi = y[0]>y[1] ? (inhi=1,0) : (inhi=0,1);
-		for (i=0;i<mpts;i++)
-		{
-			if (y[i] <= y[ilo])
-				ilo=i;
-			if (y[i] > y[ihi])
-			{
-				inhi=ihi;
-				ihi=i;
-			}
-			else if (y[i] > y[inhi] && i != ihi)
-				inhi=i;
-		}
-		rtol=2.0*fabs(y[ihi]-y[ilo])/(fabs(y[ihi])+fabs(y[ilo])+TINY);
-		if (rtol < ftol)
-		{
-			SWAP(y[0],y[ilo])
-			for (i=0;i<ndim;i++) SWAP(p[ndim*(0)+i],p[ndim*ilo+i])
-			break;
-		}
-		if (*nfunk >= NMAX){break;};
-		*nfunk += 2;
-		ytry=amotry(p,y,psum,ndim,funk,ihi,-1.0);
-		if (ytry <= y[ilo])
-			ytry=amotry(p,y,psum,ndim,funk,ihi,2.0);
-		else if (ytry >= y[inhi])
-		{
-			ysave=y[ihi];
-			ytry=amotry(p,y,psum,ndim,funk,ihi,0.5);
-			if (ytry >= ysave)
-			{
-				for (i=0;i<mpts;i++)
-				if (i != ilo)
-				{
-					for (j=0;j<ndim;j++)
-						p[ndim*i+j]=psum[j]=0.5*(p[ndim*i+j]+p[ndim*(ilo-1)+j]);
-					y[i]=(*funk)(psum);
-				}
-				*nfunk += ndim;		// Keep track of function evaluations.
-				GET_PSUM			// Recompute psum.
-			}
-		}
-		else
-			--(*nfunk);				// Correct the evaluation count.
-	}								// Go back for the test of doneness and the next
-	free(psum);
+    psum=(float*)calloc(ndim,sizeof(float));
+    *nfunk=0;
+    GET_PSUM
+    for (;;)
+    {
+        ilo=0;
+        ihi = y[0]>y[1] ? (inhi=1,0) : (inhi=0,1);
+        for (i=0;i<mpts;i++)
+        {
+            if (y[i] <= y[ilo])
+                ilo=i;
+            if (y[i] > y[ihi])
+            {
+                inhi=ihi;
+                ihi=i;
+            }
+            else if (y[i] > y[inhi] && i != ihi)
+                inhi=i;
+        }
+        rtol=2.0*fabs(y[ihi]-y[ilo])/(fabs(y[ihi])+fabs(y[ilo])+TINY);
+        if (rtol < ftol)
+        {
+            SWAP(y[0],y[ilo])
+            for (i=0;i<ndim;i++) SWAP(p[ndim*(0)+i],p[ndim*ilo+i])
+            break;
+        }
+        if (*nfunk >= NMAX){break;};
+        *nfunk += 2;
+        ytry=amotry(p,y,psum,ndim,funk,ihi,-1.0);
+        if (ytry <= y[ilo])
+            ytry=amotry(p,y,psum,ndim,funk,ihi,2.0);
+        else if (ytry >= y[inhi])
+        {
+            ysave=y[ihi];
+            ytry=amotry(p,y,psum,ndim,funk,ihi,0.5);
+            if (ytry >= ysave)
+            {
+                for (i=0;i<mpts;i++)
+                if (i != ilo)
+                {
+                    for (j=0;j<ndim;j++)
+                        p[ndim*i+j]=psum[j]=0.5*(p[ndim*i+j]+p[ndim*(ilo-1)+j]);
+                    y[i]=(*funk)(psum);
+                }
+                *nfunk += ndim; // Keep track of function evaluations.
+                GET_PSUM // Recompute psum.
+            }
+        }
+        else
+            --(*nfunk); // Correct the evaluation count.
+    } // Go back for the test of doneness and the next
+    free(psum);
 }
 #pragma mark -
 #pragma mark [ Format conversion ]
@@ -472,7 +474,7 @@ int getformatindex(char *path)
                         "sulc",     "reg",   "txt1",  "wrl",     "obj",
                         "ply",      "stl",   "smesh", "off",     "bin",
                         "mgh",      "annot", "raw",   "vtk",     "dpv",
-                        "civet_obj","gii"};
+                        "civet_obj","gii",   "asc"};
     int     i,n=sizeof(formats)/sizeof(long); // number of recognised formats
     int     found,index;
     char    *extension;
@@ -634,6 +636,13 @@ int getformatindex(char *path)
         if(verbose)
             printf("Format: Gii Mesh\n");
     }
+    else
+    if(i==27)
+    {
+        index=kAscMesh;
+        if(verbose)
+            printf("Format: Asc Mesh\n");
+    }
         
     return index;
 }
@@ -743,16 +752,16 @@ int FreeSurfer_load_annot(char *path, Mesh *m)
     if(verbose)
         printf("* FreeSurfer_load_annot\n");
 
-	FILE	*f;
-	int		i,n,l;
-	char	*tmp;
+    FILE    *f;
+    int     i,n,l;
+    char    *tmp;
     float   **data=&(m->data);
 
     f=fopen(path,"r");
-	if(f==NULL)
-		return 0;
-	
-	fread(&n,1,sizeof(int),f);
+    if(f==NULL)
+        return 0;
+    
+    fread(&n,1,sizeof(int),f);
     if(endianness==kINTEL)
         swapint(&n);
     if(m->np==0)
@@ -762,30 +771,30 @@ int FreeSurfer_load_annot(char *path, Mesh *m)
         printf("ERROR: Annotation file corrupted. points:%i annotations:%i [FreeSurfer_load_annot]\n",m->np,n);
         return 1;
     }
-    
+
     m->ddim=3;
-   	tmp=calloc(m->np,2*sizeof(int));
-   	*data=calloc(m->np,3*sizeof(float));
-	if(tmp==NULL)
-	{
-	    printf("ERROR: Cannot allocate memory [FreeSurfer_load_annot]\n");
-	    return 1;
-	}
+    tmp=calloc(m->np,2*sizeof(int));
+    *data=calloc(m->np,3*sizeof(float));
+    if(tmp==NULL)
+    {
+        printf("ERROR: Cannot allocate memory [FreeSurfer_load_annot]\n");
+        return 1;
+    }
 
     fread(tmp,m->np,2*sizeof(int),f);
-	for(i=0;i<min(m->np,n);i++)
-	{
-		l=((int*)tmp)[2*i+1];
-		if(endianness==kINTEL)
-		    swapint(&l);
-		(*data)[3*i+0]=(l&0xff);
-		(*data)[3*i+1]=((l>>8)&0xff);
-		(*data)[3*i+2]=((l>>16)&0xff);
-	}
-	free(tmp);
-	fclose(f);
+    for(i=0;i<min(m->np,n);i++)
+    {
+        l=((int*)tmp)[2*i+1];
+        if(endianness==kINTEL)
+            swapint(&l);
+        (*data)[3*i+0]=(l&0xff);
+        (*data)[3*i+1]=((l>>8)&0xff);
+        (*data)[3*i+2]=((l>>16)&0xff);
+    }
+    free(tmp);
+    fclose(f);
 
-	return 0;
+    return 0;
 }
 int FreeSurfer_load_mghdata(char *path, Mesh *m)
 {
@@ -801,12 +810,12 @@ int FreeSurfer_load_mghdata(char *path, Mesh *m)
         return 1;
     
     fread(&v,1,sizeof(int),f);          swapint(&v);
-    fread(&ndim1,1,sizeof(int),f);		swapint(&ndim1);
-    fread(&ndim2,1,sizeof(int),f);		swapint(&ndim2);
-    fread(&ndim3,1,sizeof(int),f);		swapint(&ndim3);
-    fread(&nframes,1,sizeof(int),f);	swapint(&nframes);
-    fread(&type,1,sizeof(int),f);		swapint(&type);
-    fread(&dof,1,sizeof(int),f);		swapint(&dof);
+    fread(&ndim1,1,sizeof(int),f);      swapint(&ndim1);
+    fread(&ndim2,1,sizeof(int),f);      swapint(&ndim2);
+    fread(&ndim3,1,sizeof(int),f);      swapint(&ndim3);
+    fread(&nframes,1,sizeof(int),f);    swapint(&nframes);
+    fread(&type,1,sizeof(int),f);       swapint(&type);
+    fread(&dof,1,sizeof(int),f);        swapint(&dof);
     
     if(verbose)
     {
@@ -1196,6 +1205,73 @@ int Text_save_mesh(char *path, Mesh *m)
 
     fclose(f);
     
+    return 0;
+}
+int Asc_load(char *path, Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt),nt_tmp;
+    float3D **p=&(m->p);
+    int3D   **t=&(m->t);
+    FILE    *f;
+    int     i;
+    char    str[512];
+    
+    f=fopen(path,"r");
+    if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
+    
+    // READ HEADER
+    fgets(str,511,f); // ignore identification line
+    fgets(str,511,f);
+    sscanf(str," %i %i ",np,&nt_tmp);
+    
+    // READ VERTICES
+    *p=(float3D*)calloc(*np,sizeof(float3D));
+    if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
+    for(i=0;i<*np;i++)
+        fscanf(f," %f %f %f %*i ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));    
+    if(verbose)
+        printf("Read %i vertices\n",*np);
+
+    // READ TRIANGLES
+    *nt=nt_tmp;
+    *t = (int3D*)calloc(*nt,sizeof(int3D));
+    if(*t==NULL){printf("ERROR: Not enough memory for mesh triangles\n"); return 1;}
+    for(i=0;i<*nt;i++)
+        fscanf(f," %i %i %i %*i ",&((*t)[i].a),&((*t)[i].b),&((*t)[i].c));
+    if(verbose)
+        printf("Read %i triangles\n",*nt);
+
+    fclose(f);
+    
+    return 0;
+}
+int Asc_save_mesh(char *path, Mesh *m)
+{
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    FILE    *f;
+    int     i;
+    
+    f=fopen(path,"w");
+    if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
+    
+    // WRITE HEADER
+    fprintf(f,"#!ascii by meshgeometry with love\n"); // identification line
+    fprintf(f,"%i %i\n",*np,*nt);
+
+    // WRITE VERTICES
+    for(i=0;i<*np;i++)
+        fprintf(f,"%f %f %f 0\n",p[i].x,p[i].y,p[i].z);    
+
+    // WRITE TRIANGLES
+    for(i=0;i<*nt;i++)
+        fprintf(f,"%i %i %i 0\n",t[i].a,t[i].b,t[i].c);
+
+    fclose(f);
+
     return 0;
 }
 int Text_save_data(char *path, Mesh *m)
@@ -1843,7 +1919,7 @@ int Off_save_mesh(char *path, Mesh *m)
     float3D *p=m->p;
     int3D   *t=m->t;
     FILE    *f;
-    int		i;
+    int     i;
 
     f=fopen(path,"w");
     if(f==NULL)
@@ -1864,7 +1940,7 @@ int Off_save_mesh(char *path, Mesh *m)
 int FloatData_save_data(char *path, Mesh *m)
 {
     if(verbose)
-    	printf("* FloatData_save_data\n");
+        printf("* FloatData_save_data\n");
 
     int     *np=&(m->np);
     float   *data=m->data;
@@ -1884,7 +1960,7 @@ int FloatData_save_data(char *path, Mesh *m)
 int RawFloatData_save_data(char *path, Mesh *m)
 {
     if(verbose)
-    	printf("* RawFloatData_save_data\n");
+        printf("* RawFloatData_save_data\n");
 
     float   *data=m->data;
     FILE    *f;
@@ -2169,9 +2245,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
     int        err,format;
 
     if(iformat==0)
-	    format=getformatindex(path);
-	else
-		format=iformat;
+        format=getformatindex(path);
+    else
+        format=iformat;
 
     switch(format)
     {
@@ -2225,6 +2301,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
             break;
         case kGiiMesh:
             err=Gii_load(path,m);
+            break;
+        case kAscMesh:
+            err=Asc_load(path,m);
             break;
         default:
             printf("ERROR: Input mesh format not recognised\n");
@@ -2292,9 +2371,9 @@ int saveMesh(char *path, Mesh *m, int oformat)
     int    err=0,format;
     
     if(oformat==0)
-	    format=getformatindex(path);
-	else
-		format=oformat;
+        format=getformatindex(path);
+    else
+        format=oformat;
 
     switch(format)
     {
@@ -2349,6 +2428,9 @@ int saveMesh(char *path, Mesh *m, int oformat)
         case kCivetObjMesh:
             err=CivetObj_save_mesh(path,m);
             break;
+        case kAscMesh:
+            err=Asc_save_mesh(path,m);
+            break;
         default:
             printf("ERROR: Output data format not recognised\n");
             err=1;
@@ -2367,108 +2449,108 @@ int saveMesh(char *path, Mesh *m, int oformat)
 #pragma mark [ Save TIFF ]
 void WriteHexString(FILE *f, char *str)
 {
-	int		i,j,len=strlen(str);
-	int		a;
-	short	b;
-	char	c[5];
-	
-	for(i=0;i<len;i+=4)
-	{
-		for(j=0;j<4;j++)
-			c[j]=str[i+j];
-		c[4]=(char)0;
-		sscanf(c,"%x",&a);
-		b=(short)a;
-		fwrite(&((char*)&b)[1],1,1,f);
-		fwrite(&((char*)&b)[0],1,1,f);
-	}
+    int		i,j,len=strlen(str);
+    int		a;
+    short	b;
+    char	c[5];
+    
+    for(i=0;i<len;i+=4)
+    {
+        for(j=0;j<4;j++)
+            c[j]=str[i+j];
+        c[4]=(char)0;
+        sscanf(c,"%x",&a);
+        b=(short)a;
+        fwrite(&((char*)&b)[1],1,1,f);
+        fwrite(&((char*)&b)[0],1,1,f);
+    }
 }
 void writeTIFF(char *path, char *addr, int nx, int ny)
 {
-	FILE	*fptr;
-	int		offset;
-	int		i,j;
-	char	red,green,blue;
-	
-	fptr=fopen(path,"w");
-	
-	/* Write the header */
-	WriteHexString(fptr,"4d4d002a");    /* Little endian & TIFF identifier */
-	offset = nx * ny * 3 + 8;
-	putc((offset & 0xff000000) / 16777216,fptr);
-	putc((offset & 0x00ff0000) / 65536,fptr);
-	putc((offset & 0x0000ff00) / 256,fptr);
-	putc((offset & 0x000000ff),fptr);
+    FILE	*fptr;
+    int		offset;
+    int		i,j;
+    char	red,green,blue;
+    
+    fptr=fopen(path,"w");
+    
+    /* Write the header */
+    WriteHexString(fptr,"4d4d002a");    /* Little endian & TIFF identifier */
+    offset = nx * ny * 3 + 8;
+    putc((offset & 0xff000000) / 16777216,fptr);
+    putc((offset & 0x00ff0000) / 65536,fptr);
+    putc((offset & 0x0000ff00) / 256,fptr);
+    putc((offset & 0x000000ff),fptr);
 
-	/* Write the binary data */
-	for (j=0;j<ny;j++) {
-	  for (i=0;i<nx;i++) {
-	
-		 red=addr[4*(j*nx+i)+0];
-		 green=addr[4*(j*nx+i)+1];
-		 blue=addr[4*(j*nx+i)+2];
-		 
-		 fputc(red,fptr);
-		 fputc(green,fptr);
-		 fputc(blue,fptr);
-	  }
-	}
+    /* Write the binary data */
+    for (j=0;j<ny;j++) {
+      for (i=0;i<nx;i++) {
+    
+         red=addr[4*(j*nx+i)+0];
+         green=addr[4*(j*nx+i)+1];
+         blue=addr[4*(j*nx+i)+2];
+         
+         fputc(red,fptr);
+         fputc(green,fptr);
+         fputc(blue,fptr);
+      }
+    }
    
-	WriteHexString(fptr,"000e");  						/* Write the footer */ /* The number of directory entries (14) */
-	WriteHexString(fptr,"0100000300000001");			/* Width tag, short int */
-	fputc((nx & 0xff00) / 256,fptr);    /* Image width */
-	fputc((nx & 0x00ff),fptr);
-	WriteHexString(fptr,"0000");
-	WriteHexString(fptr,"0101000300000001");			/* Height tag, short int */
-	fputc((ny & 0xff00) / 256,fptr);    /* Image height */
-	fputc((ny & 0x00ff),fptr);
-	WriteHexString(fptr,"0000");
-	WriteHexString(fptr,"0102000300000003");			/* Bits per sample tag, short int */
-	offset = nx * ny * 3 + 182;
-	putc((offset & 0xff000000) / 16777216,fptr);
-	putc((offset & 0x00ff0000) / 65536,fptr);
-	putc((offset & 0x0000ff00) / 256,fptr);
-	putc((offset & 0x000000ff),fptr);
-	WriteHexString(fptr,"010300030000000100010000");	/* Compression flag, short int */
-	WriteHexString(fptr,"010600030000000100020000");	/* Photometric interpolation tag, short int */
-	WriteHexString(fptr,"011100040000000100000008");	/* Strip offset tag, long int */
-	WriteHexString(fptr,"011200030000000100010000");	/* Orientation flag, short int */
-	WriteHexString(fptr,"011500030000000100030000");	/* Sample per pixel tag, short int */
-	WriteHexString(fptr,"0116000300000001");			/* Rows per strip tag, short int */
-	fputc((ny & 0xff00) / 256,fptr);
-	fputc((ny & 0x00ff),fptr);
-	WriteHexString(fptr,"0000");
-	WriteHexString(fptr,"0117000400000001");			/* Strip byte count flag, long int */
-	offset = nx * ny * 3;
-	putc((offset & 0xff000000) / 16777216,fptr);
-	putc((offset & 0x00ff0000) / 65536,fptr);
-	putc((offset & 0x0000ff00) / 256,fptr);
-	putc((offset & 0x000000ff),fptr);
-	WriteHexString(fptr,"0118000300000003");			/* Minimum sample value flag, short int */
-	offset = nx * ny * 3 + 188;
-	putc((offset & 0xff000000) / 16777216,fptr);
-	putc((offset & 0x00ff0000) / 65536,fptr);
-	putc((offset & 0x0000ff00) / 256,fptr);
-	putc((offset & 0x000000ff),fptr);
-	WriteHexString(fptr,"0119000300000003");			/* Maximum sample value tag, short int */
-	offset = nx * ny * 3 + 194;
-	putc((offset & 0xff000000) / 16777216,fptr);
-	putc((offset & 0x00ff0000) / 65536,fptr);
-	putc((offset & 0x0000ff00) / 256,fptr);
-	putc((offset & 0x000000ff),fptr);
-	WriteHexString(fptr,"011c00030000000100010000");	/* Planar configuration tag, short int */
-	WriteHexString(fptr,"0153000300000003");			/* Sample format tag, short int */
-	offset = nx * ny * 3 + 200;
-	putc((offset & 0xff000000) / 16777216,fptr);
-	putc((offset & 0x00ff0000) / 65536,fptr);
-	putc((offset & 0x0000ff00) / 256,fptr);
-	putc((offset & 0x000000ff),fptr);
-	WriteHexString(fptr,"00000000");					/* End of the directory entry */
-	WriteHexString(fptr,"000800080008");				/* Bits for each colour channel */
-	WriteHexString(fptr,"000000000000");				/* Minimum value for each component */
-	WriteHexString(fptr,"00ff00ff00ff");				/* Maximum value per channel */
-	WriteHexString(fptr,"000100010001");				/* Samples per pixel for each channel */
-	fclose(fptr);
+    WriteHexString(fptr,"000e");  						/* Write the footer */ /* The number of directory entries (14) */
+    WriteHexString(fptr,"0100000300000001");			/* Width tag, short int */
+    fputc((nx & 0xff00) / 256,fptr);    /* Image width */
+    fputc((nx & 0x00ff),fptr);
+    WriteHexString(fptr,"0000");
+    WriteHexString(fptr,"0101000300000001");			/* Height tag, short int */
+    fputc((ny & 0xff00) / 256,fptr);    /* Image height */
+    fputc((ny & 0x00ff),fptr);
+    WriteHexString(fptr,"0000");
+    WriteHexString(fptr,"0102000300000003");			/* Bits per sample tag, short int */
+    offset = nx * ny * 3 + 182;
+    putc((offset & 0xff000000) / 16777216,fptr);
+    putc((offset & 0x00ff0000) / 65536,fptr);
+    putc((offset & 0x0000ff00) / 256,fptr);
+    putc((offset & 0x000000ff),fptr);
+    WriteHexString(fptr,"010300030000000100010000");	/* Compression flag, short int */
+    WriteHexString(fptr,"010600030000000100020000");	/* Photometric interpolation tag, short int */
+    WriteHexString(fptr,"011100040000000100000008");	/* Strip offset tag, long int */
+    WriteHexString(fptr,"011200030000000100010000");	/* Orientation flag, short int */
+    WriteHexString(fptr,"011500030000000100030000");	/* Sample per pixel tag, short int */
+    WriteHexString(fptr,"0116000300000001");			/* Rows per strip tag, short int */
+    fputc((ny & 0xff00) / 256,fptr);
+    fputc((ny & 0x00ff),fptr);
+    WriteHexString(fptr,"0000");
+    WriteHexString(fptr,"0117000400000001");			/* Strip byte count flag, long int */
+    offset = nx * ny * 3;
+    putc((offset & 0xff000000) / 16777216,fptr);
+    putc((offset & 0x00ff0000) / 65536,fptr);
+    putc((offset & 0x0000ff00) / 256,fptr);
+    putc((offset & 0x000000ff),fptr);
+    WriteHexString(fptr,"0118000300000003");			/* Minimum sample value flag, short int */
+    offset = nx * ny * 3 + 188;
+    putc((offset & 0xff000000) / 16777216,fptr);
+    putc((offset & 0x00ff0000) / 65536,fptr);
+    putc((offset & 0x0000ff00) / 256,fptr);
+    putc((offset & 0x000000ff),fptr);
+    WriteHexString(fptr,"0119000300000003");			/* Maximum sample value tag, short int */
+    offset = nx * ny * 3 + 194;
+    putc((offset & 0xff000000) / 16777216,fptr);
+    putc((offset & 0x00ff0000) / 65536,fptr);
+    putc((offset & 0x0000ff00) / 256,fptr);
+    putc((offset & 0x000000ff),fptr);
+    WriteHexString(fptr,"011c00030000000100010000");	/* Planar configuration tag, short int */
+    WriteHexString(fptr,"0153000300000003");			/* Sample format tag, short int */
+    offset = nx * ny * 3 + 200;
+    putc((offset & 0xff000000) / 16777216,fptr);
+    putc((offset & 0x00ff0000) / 65536,fptr);
+    putc((offset & 0x0000ff00) / 256,fptr);
+    putc((offset & 0x000000ff),fptr);
+    WriteHexString(fptr,"00000000");					/* End of the directory entry */
+    WriteHexString(fptr,"000800080008");				/* Bits for each colour channel */
+    WriteHexString(fptr,"000000000000");				/* Minimum value for each component */
+    WriteHexString(fptr,"00ff00ff00ff");				/* Maximum value per channel */
+    WriteHexString(fptr,"000100010001");				/* Samples per pixel for each channel */
+    fclose(fptr);
 }
 // plot long rainbow RGB from https://www.particleincell.com/2014/colormap/
 int greyscale(float val, float *r, float *g, float *b)
@@ -3117,35 +3199,35 @@ void depth(float *C, Mesh *m)
 {
     if(verbose)
         printf("depth\n");
-	int			i;
+    int			i;
     float		n,max;
-	float3D		ce={0,0,0},ide,siz;
-	int         np=m->np;
-	float3D     *p=m->p;
-	
-	// compute sulcal depth
-	for(i=0;i<np;i++)
-	{
-		ce=(float3D){ce.x+p[i].x,ce.y+p[i].y,ce.z+p[i].z};
-		
-		if(i==0) ide=siz=p[i];
-		
-		if(ide.x<p[i].x) ide.x=p[i].x;
-		if(ide.y<p[i].y) ide.y=p[i].y;
-		if(ide.z<p[i].z) ide.z=p[i].z;
-		
-		if(siz.x>p[i].x) siz.x=p[i].x;
-		if(siz.y>p[i].y) siz.y=p[i].y;
-		if(siz.z>p[i].z) siz.z=p[i].z;
-	}
-	ce=(float3D){ce.x/(float)np,ce.y/(float)np,ce.z/(float)np};
+    float3D		ce={0,0,0},ide,siz;
+    int         np=m->np;
+    float3D     *p=m->p;
+    
+    // compute sulcal depth
+    for(i=0;i<np;i++)
+    {
+        ce=(float3D){ce.x+p[i].x,ce.y+p[i].y,ce.z+p[i].z};
+        
+        if(i==0) ide=siz=p[i];
+        
+        if(ide.x<p[i].x) ide.x=p[i].x;
+        if(ide.y<p[i].y) ide.y=p[i].y;
+        if(ide.z<p[i].z) ide.z=p[i].z;
+        
+        if(siz.x>p[i].x) siz.x=p[i].x;
+        if(siz.y>p[i].y) siz.y=p[i].y;
+        if(siz.z>p[i].z) siz.z=p[i].z;
+    }
+    ce=(float3D){ce.x/(float)np,ce.y/(float)np,ce.z/(float)np};
 
-	max=0;
+    max=0;
     for(i=0;i<np;i++)
     {
         n=	pow(2*(p[i].x-ce.x)/(ide.x-siz.x),2) +
-			pow(2*(p[i].y-ce.y)/(ide.y-siz.y),2) +
-			pow(2*(p[i].z-ce.z)/(ide.z-siz.z),2);
+            pow(2*(p[i].y-ce.y)/(ide.y-siz.y),2) +
+            pow(2*(p[i].z-ce.z)/(ide.z-siz.z),2);
 
         C[i] = sqrt(n);
         if(C[i]>max)	max=C[i];
@@ -3156,13 +3238,13 @@ void depth(float *C, Mesh *m)
 int drawSurface(Mesh *m,char *cmap,char *tiff_path)
 {
     int		i;
-	char	*addr;      // memory for tiff image
-	int     width=512;  // tiff width
-	int     height=512; // tiff height
+    char	*addr;      // memory for tiff image
+    int     width=512;  // tiff width
+    int     height=512; // tiff height
     float	zoom=1/4.0;
-	float3D	a,b,c;
-	float3D back={0xff,0xff,0xff};  // background colour
-	int     toonFlag=0;
+    float3D	a,b,c;
+    float3D back={0xff,0xff,0xff};  // background colour
+    int     toonFlag=0;
     int     np=m->np;
     int     nt=m->nt;
     int3D   *t=m->t;
@@ -3226,40 +3308,40 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
 
     // draw
         glEnableClientState(GL_VERTEX_ARRAY);
-		glVertexPointer(3,GL_FLOAT,0,(GLfloat*)p);
+        glVertexPointer(3,GL_FLOAT,0,(GLfloat*)p);
         glEnableClientState(GL_COLOR_ARRAY);
         glColorPointer(3,GL_FLOAT,0,(GLfloat*)color);
         glDrawElements(GL_TRIANGLES,nt*3,GL_UNSIGNED_INT,(GLuint*)t);
 
-	// toon shading
-		if(toonFlag)
-		{
-			glEnable( GL_CULL_FACE );
-			glPolygonMode( GL_BACK, GL_FILL );
-			glCullFace( GL_FRONT );
+    // toon shading
+        if(toonFlag)
+        {
+            glEnable( GL_CULL_FACE );
+            glPolygonMode( GL_BACK, GL_FILL );
+            glCullFace( GL_FRONT );
 
-			glPolygonMode(GL_FRONT, GL_LINE);
-			glLineWidth(3.0);
-			glCullFace(GL_BACK);
-			glDepthFunc(GL_LESS);
-			glColor3f(0,0,0);
-			glBegin(GL_TRIANGLES);
-			for(i=0;i<nt;i++)
-			{
-				a=p[t[i].a];
-				b=p[t[i].b];
-				c=p[t[i].c];
-				
-				glVertex3fv((float*)&a);
-				glVertex3fv((float*)&b);
-				glVertex3fv((float*)&c);
-			}
-			glEnd();
-			glDisable( GL_CULL_FACE );
-		}
-	
-	// Write image in TIFF format
-	addr=(char*)calloc(width*height,sizeof(char)*4);
+            glPolygonMode(GL_FRONT, GL_LINE);
+            glLineWidth(3.0);
+            glCullFace(GL_BACK);
+            glDepthFunc(GL_LESS);
+            glColor3f(0,0,0);
+            glBegin(GL_TRIANGLES);
+            for(i=0;i<nt;i++)
+            {
+                a=p[t[i].a];
+                b=p[t[i].b];
+                c=p[t[i].c];
+
+                glVertex3fv((float*)&a);
+                glVertex3fv((float*)&b);
+                glVertex3fv((float*)&c);
+            }
+            glEnd();
+            glDisable( GL_CULL_FACE );
+        }
+    
+    // Write image in TIFF format
+    addr=(char*)calloc(width*height,sizeof(char)*4);
     glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,addr);
     
     if(strcmp(cmap,"level2")==0)
@@ -3270,12 +3352,12 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
     for(i=0;i<width*height*4;i++)
         addr[i]=(char)((addr[i]%64>=60 && addr[i]%64<64)?0:255);
 
-	writeTIFF(tiff_path,addr,width,height);
-	
-	free(color);
-	free(addr);
-	
-	return 0;
+    writeTIFF(tiff_path,addr,width,height);
+    
+    free(color);
+    free(addr);
+    
+    return 0;
 }
 int fixflip(Mesh *m)
 {
@@ -3463,33 +3545,33 @@ int fixNonmanifold_verts(Mesh *mesh)
 }
 int fixnonmanifold_tris(Mesh *mesh)
 {
-	int     i,j,found;
-	int3D   *t=mesh->t,t1;
-	int     nt=mesh->nt;
-	int     np=mesh->np;
-	int     np1;
-	NTriRec *ne;
-	float3D *p1,*p=mesh->p;
-	
-	found=nonmanifold_tris(mesh);
-	
-	if(found==0)
-	{
-	    printf("no nonmanifold triangles found\n");
-	    return 0;
-	}
-	
-	p1=(float3D*)calloc(np+found*3,sizeof(float3D));
-	for(i=0;i<np;i++)
-	    p1[i]=p[i];
-	np1=np;
+    int     i,j,found;
+    int3D   *t=mesh->t,t1;
+    int     nt=mesh->nt;
+    int     np=mesh->np;
+    int     np1;
+    NTriRec *ne;
+    float3D *p1,*p=mesh->p;
+    
+    found=nonmanifold_tris(mesh);
+    
+    if(found==0)
+    {
+        printf("no nonmanifold triangles found\n");
+        return 0;
+    }
+    
+    p1=(float3D*)calloc(np+found*3,sizeof(float3D));
+    for(i=0;i<np;i++)
+        p1[i]=p[i];
+    np1=np;
 
     neighbours(mesh);
     ne=mesh->NT;
     
-	found=0;
-	for(i=0;i<nt;i++)
-	{
+    found=0;
+    for(i=0;i<nt;i++)
+    {
         for(j=0;j<ne[t[i].a].n;j++)
         if(ne[t[i].a].t[j]!=i)
         {
@@ -3508,9 +3590,9 @@ int fixnonmanifold_tris(Mesh *mesh)
                 break;
             }
         }
-	}
-	printf("%i double triangles found\n",found/2);
-	return found/2;
+    }
+    printf("%i double triangles found\n",found/2);
+    return found/2;
 }
 int fixSmall(Mesh *m)
 {
@@ -4188,30 +4270,30 @@ float stdData(Mesh *m)
 4 5 3 5		c2: e1.a>e2.a					r  1
 3 5 3 7		c3: e1.a==e2.a, e1.b<e2.b		r -1
 3 7 3 5		c4: e1.a==e2.a, e1.b>e2.b		r  1
-			c5: e1.a==e2.a, e1.b==e2.b		r  0
+            c5: e1.a==e2.a, e1.b==e2.b		r  0
 */
 int compareEdges (const void *a, const void *b)
 {
-	int2D	e1=*(int2D*)a;
-	int2D	e2=*(int2D*)b;
+    int2D	e1=*(int2D*)a;
+    int2D	e2=*(int2D*)b;
 
-	if(e1.a==e2.a)
-	{
-		if(e1.b==e2.b)
-			return 0;
-		else
-		if(e1.b<e2.b)
-			return -1;
-		else
-			return 1;
-	}
-	else
-	{
-		if(e1.a<e2.a)
-			return -1;
-		else
-			return	1;
-	}
+    if(e1.a==e2.a)
+    {
+        if(e1.b==e2.b)
+            return 0;
+        else
+        if(e1.b<e2.b)
+            return -1;
+        else
+            return 1;
+    }
+    else
+    {
+        if(e1.a<e2.a)
+            return -1;
+        else
+            return	1;
+    }
 }
 int nonmanifold_verts(Mesh *mesh)
 {
@@ -4228,7 +4310,7 @@ int nonmanifold_verts(Mesh *mesh)
     neighbours(mesh);
     ne=mesh->NT;
 
-	printf("non manifold vertices\n");
+    printf("non manifold vertices\n");
     for(i=0;i<np;i++)
     {
         // store all the edges in the triangles connected to vertex p[i]
@@ -4320,50 +4402,50 @@ int nonmanifold_verts(Mesh *mesh)
 }
 void nonmanifold_eds(Mesh *mesh)
 {
-	int     i,j,k,equal;
+    int     i,j,k,equal;
     int     n;  // # manifold edges
     int3D	*e;
-	int		*t;	
-	int3D   *tris=mesh->t;
-	int     nt=mesh->nt;
+    int		*t;	
+    int3D   *tris=mesh->t;
+    int     nt=mesh->nt;
 
-	// make a list of all edges
-	e=(int3D*)calloc(nt*3,sizeof(int3D));
-	for(i=0;i<nt;i++)
-	{
-		t=(int*)&(tris[i]);
-		for(j=0;j<3;j++)
-		{
-			if(t[j]<t[(j+1)%3])
-			{
-				e[3*i+j].a=t[j];        // 1st vertex
-				e[3*i+j].b=t[(j+1)%3];  // 2nd vertex
-				e[3*i+j].c=i;           // # triangle
-			}
-			else
-			{
-				e[3*i+j].a=t[(j+1)%3];  // 1st vertex
-				e[3*i+j].b=t[j];        // 2nd vertex
-				e[3*i+j].c=i;           // # triangle
-			}
-		}
-	}
-	
-	// sort edges
-	qsort(e,nt*3,sizeof(int3D),compareEdges);
+    // make a list of all edges
+    e=(int3D*)calloc(nt*3,sizeof(int3D));
+    for(i=0;i<nt;i++)
+    {
+        t=(int*)&(tris[i]);
+        for(j=0;j<3;j++)
+        {
+            if(t[j]<t[(j+1)%3])
+            {
+                e[3*i+j].a=t[j];        // 1st vertex
+                e[3*i+j].b=t[(j+1)%3];  // 2nd vertex
+                e[3*i+j].c=i;           // # triangle
+            }
+            else
+            {
+                e[3*i+j].a=t[(j+1)%3];  // 1st vertex
+                e[3*i+j].b=t[j];        // 2nd vertex
+                e[3*i+j].c=i;           // # triangle
+            }
+        }
+    }
+    
+    // sort edges
+    qsort(e,nt*3,sizeof(int3D),compareEdges);
 
-	//for(i=0;i<nt*3;i++) printf("e[%i]=(%i,%i), t[%i]\n",i,e[i].a,e[i].b,e[i].c);
-	
-	printf("non manifold edges\n");
-	// count nonmanifold edges
-	j=0;
-	k=0;
-	n=0;
-	do
-	{
-		k=1;
-		do
-		{
+    //for(i=0;i<nt*3;i++) printf("e[%i]=(%i,%i), t[%i]\n",i,e[i].a,e[i].b,e[i].c);
+    
+    printf("non manifold edges\n");
+    // count nonmanifold edges
+    j=0;
+    k=0;
+    n=0;
+    do
+    {
+        k=1;
+        do
+        {
     		equal=0;
             if(e[j].a==e[j+k].a && e[j].b==e[j+k].b)
             {
@@ -4381,23 +4463,23 @@ void nonmanifold_eds(Mesh *mesh)
             }
         }
         while(equal);
-	}
-	while(j<nt*3);
-	printf("nonmanifold edges:%i\n",n);
+    }
+    while(j<nt*3);
+    printf("nonmanifold edges:%i\n",n);
 }
 int nonmanifold_tris(Mesh *mesh)
 {
-	int     i,j,found;
-	int3D   *t=mesh->t,t1;
-	int     nt=mesh->nt;
-	NTriRec *ne;
+    int     i,j,found;
+    int3D   *t=mesh->t,t1;
+    int     nt=mesh->nt;
+    NTriRec *ne;
 
     neighbours(mesh);
     ne=mesh->NT;
     
-	found=0;
-	for(i=0;i<nt;i++)
-	{
+    found=0;
+    for(i=0;i<nt;i++)
+    {
         for(j=0;j<ne[t[i].a].n;j++)
         if(ne[t[i].a].t[j]!=i)
         {
@@ -4411,9 +4493,9 @@ int nonmanifold_tris(Mesh *mesh)
                 break;
             }
         }
-	}
-	printf("%i double triangles found\n",found/2);
-	return found/2;
+    }
+    printf("%i double triangles found\n",found/2);
+    return found/2;
 }
 void normalise(Mesh *m)
 {
@@ -5332,20 +5414,20 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
 */
 int sortTrianglesFunction(const void *a, const void *b)
 {
-	float3D	v1=*(float3D*)a;
-	float3D	v2=*(float3D*)b;
+    float3D	v1=*(float3D*)a;
+    float3D	v2=*(float3D*)b;
 
-	if(v1.x==v2.x)
-	{
-		return 0;
-	}
-	else
-	{
-		if(v1.x<v2.x)
-			return -1;
-		else
-			return	1;
-	}
+    if(v1.x==v2.x)
+    {
+        return 0;
+    }
+    else
+    {
+        if(v1.x<v2.x)
+            return -1;
+        else
+            return	1;
+    }
 }
 void sortTriangles(Mesh *m)
 {
@@ -5378,20 +5460,20 @@ void sortTriangles(Mesh *m)
 }
 int sortVerticesFunction(const void *a, const void *b)
 {
-	float3D	v1=*(float3D*)a;
-	float3D	v2=*(float3D*)b;
+    float3D	v1=*(float3D*)a;
+    float3D	v2=*(float3D*)b;
 
-	if(v1.x==v2.x)
-	{
-		return 0;
-	}
-	else
-	{
-		if(v1.x<v2.x)
-			return -1;
-		else
-			return	1;
-	}
+    if(v1.x==v2.x)
+    {
+        return 0;
+    }
+    else
+    {
+        if(v1.x<v2.x)
+            return -1;
+        else
+            return	1;
+    }
 }
 void uniform(Mesh *m)
 {
@@ -5574,6 +5656,7 @@ void printHelp(void)
     .txt1                                            RT's data format\n\
     .bin                                             n-e-r-v-o-u-s system web binary mesh\n\
     .obj                                             Civet's .obj format. Has to be used with -iformat civet_obj\n\
+    .asc                                             Freesurfer's ascii format\n\
     .wrl, .obj, .ply, .stl, .smesh, .off, .vtk       Other mesh formats\n\
 ");
 }
