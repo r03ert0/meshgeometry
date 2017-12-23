@@ -2936,6 +2936,27 @@ void barycentre(Mesh *m)
     for(i=0;i<*np;i++)
         p[i]=sub3D(p[i],centre);
 }
+int boundingBox(Mesh *m)
+{
+    int     np=m->np;
+    float3D *p=m->p;
+    float3D min,max;
+    int     i;
+    
+    min=max=p[0];
+    for(i=0;i<np;i++)
+    {
+        min.x=(p[i].x<min.x)?p[i].x:min.x;
+        min.y=(p[i].y<min.y)?p[i].y:min.y;
+        min.z=(p[i].z<min.z)?p[i].z:min.z;
+        max.x=(p[i].x>max.x)?p[i].x:max.x;
+        max.y=(p[i].y>max.y)?p[i].y:max.y;
+        max.z=(p[i].z>max.z)?p[i].z:max.z;
+    }
+    printf("boundingBox: %f,%f,%f,%f,%f,%f\n",min.x,min.y,min.z,max.x,max.y,max.z);
+
+    return 0;
+}
 void translate(float a,float b,float c,Mesh *m)
 {
     int     np=m->np;
@@ -5584,6 +5605,7 @@ void printHelp(void)
                                                        of the same topology\n\
     -barycentre                                      Put the mesh origin at the average of all its vertices\n\
     -barycentricProjection reference_mesh            Print barycentric coordinates for each vertex in reference_mesh\n\
+    -boundingBox                                     Display mesh bounding box minx, miny, minz, maxx, maxy, maxz.\n\
     -checkOrientation                                Check that normals point outside\n\
     -centre                                          Put the mesh origin at half its width, length and height\n\
     -countClusters  value                            Count clusters in texture data\n\
@@ -5798,6 +5820,11 @@ int main(int argc, char *argv[])
         {
             barycentricProjection(argv[i+1],&mesh);
             i+=1;
+        }
+        else
+        if(strcmp(argv[i],"-boundingBox")==0)    // mesh bounding box
+        {
+            boundingBox(&mesh);
         }
         else
         if(strcmp(argv[i],"-checkOrientation")==0)
