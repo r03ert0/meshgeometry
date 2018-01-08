@@ -69,7 +69,8 @@ char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add
 #define kDPVData            18
 #define kCivetObjMesh       19
 #define kGiiMesh            20
-#define kAscMesh            21
+#define kGiiData            21
+#define kAscMesh            22
 
 typedef struct
 {
@@ -469,12 +470,12 @@ void amoeba(float *p, float y[], int ndim, float ftol,float (*funk)(float []),in
 #pragma mark [ Format conversion ]
 int getformatindex(char *path)
 {
-    char    *formats[]={"orig",     "pial",  "white", "mesh",    "sratio",
-                        "float",    "curv",  "txt",   "inflated","sphere",
-                        "sulc",     "reg",   "txt1",  "wrl",     "obj",
-                        "ply",      "stl",   "smesh", "off",     "bin",
-                        "mgh",      "annot", "raw",   "vtk",     "dpv",
-                        "civet_obj","gii",   "asc"};
+    char    *formats[]={"orig",     "pial",  "white",    "mesh",    "sratio",
+                        "float",    "curv",  "txt",      "inflated","sphere",
+                        "sulc",     "reg",   "txt1",     "wrl",     "obj",
+                        "ply",      "stl",   "smesh",    "off",     "bin",
+                        "mgh",      "annot", "raw",      "vtk",     "dpv",
+                        "civet_obj","gii",   "data_gii", "asc"};
     int     i,n=sizeof(formats)/sizeof(long); // number of recognised formats
     int     found,index;
     char    *extension;
@@ -638,6 +639,13 @@ int getformatindex(char *path)
     }
     else
     if(i==27)
+    {
+        index=kGiiData;
+        if(verbose)
+            printf("Format: Gii Data\n");
+    }
+    else
+    if(i==28)
     {
         index=kAscMesh;
         if(verbose)
@@ -2131,22 +2139,40 @@ int DPV_load_data(char *path, Mesh *m)
     
     return 0;
 }
-void read_giiElement(char *path, char *el, char **data, int *n)
+void read_giiElement(char *path, char *el, char **data, int *n, int *d)
 {
     FILE        *f;
     long        sz,expsz;
     char        *gzdata;
     z_stream    strm;
     char        str[256],cmd[2048];
-    
+    int         nd;
+
+    *d = 0;
+    nd = 0;
+
     // Read number of values
-    sprintf(cmd,"awk 'BEGIN{s=0}/%s/{s=1}/Dim0/{if(s==1){split($0,a,\"\\\"\");n=a[2];s=0}}END{print n}' %s",el,path);    
+    sprintf(cmd,"awk 'BEGIN{s=0}/%s/{s=1}/Dimensionality/{if(s==1){split($0,a,\"\\\"\");d=a[2];s=2}}/Dim0/{if(s==2){split($0,a,\"\\\"\");n=a[2];s=0}}END{print d,n}' %s",el,path);
     f=popen(cmd,"r");
     fgets(str,256,f);
-    sscanf(str," %i ",n);
+    sscanf(str," %i %i ", d, n);
     pclose(f);
+
+    // We currently handle only two cases. In the first one, Dimensionality=1 and Dim0
+    // gives the number of values to read. In the second case, Dimensionality=2, Dim0 is
+    // a number of vectors, each with 3 values. More generally, this value could be
+    // obtained from the Dim1 field
+    if(*d==1)
+    {
+        nd = 1;
+    }
+    else if(*d==2)
+    {
+        nd = 3;
+    }
+    printf("dim: %i\n",nd);
     printf("n: %i\n",*n);
-    
+
     // Calculate length of gzip compressed data
     sprintf(cmd,"awk 'BEGIN{s=0}/%s/{s=1}/<Data>/{if(s==1){split($0,a,\"[<>]\");d=a[3];s=0}}END{print d}' %s|base64 --decode",el,path);
     f=popen(cmd,"r");
@@ -2172,7 +2198,7 @@ void read_giiElement(char *path, char *el, char **data, int *n)
     pclose(f);
     
     // Inflate gzip data
-    expsz=(*n)*3*4; // because 3: 3d data, 4: float or int 4 byte values
+    expsz=(*n)*nd*4; // because 4: float or int 4 byte values
     *data=calloc(expsz,sizeof(char));
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
@@ -2190,13 +2216,14 @@ void read_giiElement(char *path, char *el, char **data, int *n)
 }
 int Gii_load(char *path, Mesh *m)
 {
+    int     d = 0;
     int     *np=&(m->np);
     int     *nt=&(m->nt);
     float3D **p=&(m->p);
     int3D   **t=&(m->t);
 
-    read_giiElement(path,"NIFTI_INTENT_POINTSET",(char**)p,np);
-    read_giiElement(path,"NIFTI_INTENT_TRIANGLE",(char**)t,nt);
+    read_giiElement(path,"NIFTI_INTENT_POINTSET",(char**)p,np,&d);
+    read_giiElement(path,"NIFTI_INTENT_TRIANGLE",(char**)t,nt,&d);
     if(verbose)
     {
         printf("Read %i vertices\n",*np);
@@ -2204,6 +2231,22 @@ int Gii_load(char *path, Mesh *m)
     }
     
     return 0;    
+}
+int Gii_load_data(char *path, Mesh *m)
+{
+    printf("Gii_load_data\n");
+
+    int     d = 0;
+    int     *np=&(m->np);
+    float   **data=&(m->data);
+
+    read_giiElement(path,"NIFTI_INTENT_NONE",(char**)data,np,&d);
+    if(verbose)
+    {
+        printf("Read %i values\n",*np);
+    }
+
+    return 0;
 }
 
 
@@ -2301,6 +2344,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
             break;
         case kGiiMesh:
             err=Gii_load(path,m);
+            break;
+        case kGiiData:
+            err=Gii_load_data(path,m);
             break;
         case kAscMesh:
             err=Asc_load(path,m);
@@ -5719,6 +5765,7 @@ void printHelp(void)
     .bin                                             n-e-r-v-o-u-s system web binary mesh\n\
     .obj                                             Civet's .obj format. Has to be used with -iformat civet_obj\n\
     .asc                                             Freesurfer's ascii format\n\
+    .gii                                             Gifti format\n\
     .wrl, .obj, .ply, .stl, .smesh, .off, .vtk       Other mesh formats\n\
 ");
 }
