@@ -3759,6 +3759,45 @@ int icurvature(int iter, Mesh *m)
     
     return 0;
 }
+/**
+  * @function invert
+  * @desc Invert a specific coordinate of the mesh vertices
+  * @param axis string The axis, x, y or z
+  * @param m pointer Pointer to the mesh to invert
+  */
+int invert(char *axis, Mesh *m)
+{
+    int x, y, z;
+    int i;
+    int *np=&(m->np);
+    float3D *p=m->p;
+
+    x = y = z = 1;
+
+    if(strcmp(axis, "x") == 0)
+    {
+        x = -1;
+    }
+    else
+    if(strcmp(axis, "y") == 0)
+    {
+        y = -1;
+    }
+    else
+    if(strcmp(axis, "z") == 0)
+    {
+        z = -1;
+    }
+
+    for(i=0;i<*np;i++)
+    {
+        p[i].x *= x;
+        p[i].y *= y;
+        p[i].z *= z;
+    }
+
+    return 0;
+}
 int isolatedVerts(Mesh *m)
 {
     int     *np=&(m->np);
@@ -5620,6 +5659,7 @@ void printHelp(void)
     -foldLength                                      Compute total fold length\n\
     -h                                               Help\n\
     -icurv number_of_iterations                      Integrated curvature\n\
+    -invert axis                                     Invert the sign of the mesh vertices along the specified axis\n\
     -isolatedVerts                                   Find isolated vertices\n\
     -printCentre                                     Prints the coordinates of the centre of the mesh\n\
     -printBarycentre                                 Prints the coordinates of the barycentre of the mesh\n\
@@ -5851,6 +5891,12 @@ int main(int argc, char *argv[])
             if(mesh.data==NULL)
                 mesh.data=(float*)calloc(mesh.np,sizeof(float));
             icurvature(atoi(argv[++i]),&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-invert")==0)
+        {
+            char *axis = argv[++i];
+            invert(axis,&mesh);
         }
         else
         if(strcmp(argv[i],"-isolatedVerts")==0)
