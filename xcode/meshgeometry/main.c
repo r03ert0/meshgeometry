@@ -480,7 +480,7 @@ int getformatindex(char *path)
     int     found,index;
     char    *extension;
     
-    for(i=strlen(path);i>=0;i--)
+    for(i=(int)strlen(path);i>=0;i--)
         if(path[i]=='.')
             break;
     if(i==0)
@@ -2504,7 +2504,7 @@ int saveMesh(char *path, Mesh *m, int oformat)
 #pragma mark [ Save TIFF ]
 void WriteHexString(FILE *f, char *str)
 {
-    int		i,j,len=strlen(str);
+    int		i,j,len=(int)strlen(str);
     int		a;
     short	b;
     char	c[5];
@@ -2660,8 +2660,8 @@ void align(Mesh *m, char *path)
     float3D pp; // moving vertex
     int     i,j,niter;
     float3D c0={0,0,0},c1={0,0,0};
-    float   x0,y0,z0,x,y,z,M[9];
-    float   err,minerr;
+    float   x0=0,y0=0,z0=0,x=0,y=0,z=0,M[9];
+    float   err,minerr=0;
     int     iminerr;
     
     loadMesh(path, &target,0);
@@ -3510,7 +3510,7 @@ int fixflipSphere(Mesh *m)
     for(i=0;i<np;i++)
     {
         tmp=sca3D(p[i], 1/norm3D(p[i]));
-        if(dot3D(nn[NT[i].t[j]],tmp)>0)
+        if(dot3D(nn[NT[i].t[0]],tmp)>0)
             continue;
 
         // flip detected: move the vertex to the barycentre of its neighbours to fix it
@@ -3540,7 +3540,7 @@ int fixNonmanifold_verts(Mesh *mesh)
     NTriRec *ne;
     int3D   *e;
     int e_length;
-    int i,j,k,l,found,loop;
+    int i,j,k,l,found,loop=0;
     int np=mesh->np;
     float3D *p=mesh->p;
     int3D *t=mesh->t;
@@ -6225,7 +6225,7 @@ int main(int argc, char *argv[])
             sscanf(str," %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f ",
                 &(m[0]),&(m[1]),&(m[2]),&(m[3]),
                 &(m[4]),&(m[5]),&(m[6]),&(m[7]),
-                &(m[8]),&(m[9]),&(m[10]),&(m[11]));
+                &(m[8]),&(m[8]),&(m[10]),&(m[11]));
             applyMatrix(m,&mesh);
         }
         else
