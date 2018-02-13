@@ -4,27 +4,19 @@
 #   https://developer.apple.com/library/mac/documentation/GraphicsImaging/Conceptual/OpenGL-MacProgGuide/opengl_offscreen/opengl_offscreen.html
 #   http://www.swiftless.com/tutorials/opengl/framebuffer.html
 
-unameOut="$(uname -s)"
-case "${unameOut}" in
-    Linux*)     machine=Linux;;
-    Darwin*)    machine=Mac;;
-    CYGWIN*)    machine=Cygwin;;
-    MINGW*)     machine=MinGw;;
-    *)          machine="UNKNOWN:${unameOut}"
-esac
+OS="$(uname -s)" || exit 1
 
-if [ $machine == 'Mac' ]; then
+case "${OS}" in
+'Darwin')
     echo "Compiling for Mac"
-    gcc -Wall -lm -lz -Wno-deprecated meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
-fi
-
-if [ $machine == 'Linux' ]; then
+    gcc -Wall -lz -Wno-deprecated meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
+'Linux')
     echo "Compiling for Linux"
-    gcc -Wall  -lm -lz meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut
-fi
-
-if [ $machine == 'Cygwin' ]; then
+    gcc -Wall  -Wno-unknown-pragmas meshgeometry.c -o meshgeometry_linux -lGL -lGLU -lglut -lm -lz
+'CYGWIN')
     echo "Compiling for Cygwin"
     gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
-fi
-
+*)
+  	echo "Unknown OS $OS, if it is some kind of unix, try:" 1>&2
+	  echo "  gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut -lm -lz" 1>&2
+esac
