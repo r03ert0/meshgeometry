@@ -20,6 +20,11 @@ fi
 
 if [ $machine == 'Linux' ]; then
     echo "Compiling for Linux"
-    gcc -Wall -lm -lz -Wno-deprecated meshgeometry.c -o meshgeometry_linux
+    gcc -Wall  -lm -lz meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut
+fi
+
+if [ $machine == 'Cygwin' ]; then
+    echo "Compiling for Cygwin"
+    gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
 fi
 
