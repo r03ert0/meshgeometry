@@ -3674,26 +3674,24 @@ int fixNonmanifold_verts(Mesh *mesh)
 }
 int fixnonmanifold_tris(Mesh *mesh)
 {
-    int     i,j,found;
-    int3D   *t=mesh->t,t1;
-    int     nt=mesh->nt;
-    int     np=mesh->np;
-    int     np1;
-    NTriRec *ne;
-    float3D *p1,*p=mesh->p;
-    
-    found=nonmanifold_tris(mesh);
-    
-    if(found==0)
-    {
-        printf("no nonmanifold triangles found\n");
-        return 0;
-    }
-    
-    p1=(float3D*)calloc(np+found*3,sizeof(float3D));
-    for(i=0;i<np;i++)
-        p1[i]=p[i];
-    np1=np;
+	int     i,j,found;
+	int3D   *t=mesh->t,t1;
+	int     nt=mesh->nt;
+	int     np=mesh->np;
+	NTriRec *ne;
+	float3D *p1,*p=mesh->p;
+	
+	found=nonmanifold_tris(mesh);
+	
+	if(found==0)
+	{
+	    printf("no nonmanifold triangles found\n");
+	    return 0;
+	}
+	
+	p1=(float3D*)calloc(np+found*3,sizeof(float3D));
+	for(i=0;i<np;i++)
+	    p1[i]=p[i];
 
     neighbours(mesh);
     ne=mesh->NT;
@@ -3711,11 +3709,6 @@ int fixnonmanifold_tris(Mesh *mesh)
             {
                 found++;
                 printf("triangle %i doubles triangle %i. Fixing it\n",i,ne[t[i].a].t[j]);
-                /*
-                p1[np1]=p[t.a];
-                p1[np1+1]=p[t.b];
-                p1[np2+2]=p[t.c];
-                */
                 break;
             }
         }
@@ -4338,12 +4331,11 @@ int lissencephalic(int iter, Mesh *m)
  quite working, though.
 */
 {
-    int     np,np0;
+    int     np;
     float3D *tmp,*p;
     float   *data=m->data;
     int     i,j,k;
     
-    np0=m->np;
     level(0,m);
     np=m->np;
     p=m->p;
@@ -5460,7 +5452,7 @@ int tangentLaplace(float lambda, Mesh *m)
     int     *nt=&(m->nt);
     float3D *p=m->p;
     int3D   *t=m->t;
-    float3D *tmp,x,dx,*tmp1,nn;
+    float3D *tmp,dx,*tmp1,nn;
     int     *n;
     int     i;
     
@@ -5483,7 +5475,6 @@ int tangentLaplace(float lambda, Mesh *m)
         if(n[i]==0)
         {
             printf("WARNING: isolated vertex %i\n",i);
-            x=tmp[i];
         }
         else
             tmp[i]=sca3D(tmp[i],1/(float)n[i]);
