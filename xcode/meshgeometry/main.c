@@ -480,7 +480,7 @@ int getformatindex(char *path)
     int     found,index;
     char    *extension;
     
-    for(i=strlen(path);i>=0;i--)
+    for(i=(int)strlen(path);i>=0;i--)
         if(path[i]=='.')
             break;
     if(i==0)
@@ -2504,7 +2504,7 @@ int saveMesh(char *path, Mesh *m, int oformat)
 #pragma mark [ Save TIFF ]
 void WriteHexString(FILE *f, char *str)
 {
-    int		i,j,len=strlen(str);
+    int		i,j,len=(int)strlen(str);
     int		a;
     short	b;
     char	c[5];
@@ -2660,8 +2660,8 @@ void align(Mesh *m, char *path)
     float3D pp; // moving vertex
     int     i,j,niter;
     float3D c0={0,0,0},c1={0,0,0};
-    float   x0,y0,z0,x,y,z,M[9];
-    float   err,minerr;
+    float   x0=0,y0=0,z0=0,x=0,y=0,z=0,M[9];
+    float   err,minerr=0;
     int     iminerr;
     
     loadMesh(path, &target,0);
@@ -3510,7 +3510,7 @@ int fixflipSphere(Mesh *m)
     for(i=0;i<np;i++)
     {
         tmp=sca3D(p[i], 1/norm3D(p[i]));
-        if(dot3D(nn[NT[i].t[j]],tmp)>0)
+        if(dot3D(nn[NT[i].t[0]],tmp)>0)
             continue;
 
         // flip detected: move the vertex to the barycentre of its neighbours to fix it
@@ -3540,7 +3540,7 @@ int fixNonmanifold_verts(Mesh *mesh)
     NTriRec *ne;
     int3D   *e;
     int e_length;
-    int i,j,k,l,found,loop;
+    int i,j,k,l,found,loop=0;
     int np=mesh->np;
     float3D *p=mesh->p;
     int3D *t=mesh->t;
@@ -3674,24 +3674,26 @@ int fixNonmanifold_verts(Mesh *mesh)
 }
 int fixnonmanifold_tris(Mesh *mesh)
 {
-	int     i,j,found;
-	int3D   *t=mesh->t,t1;
-	int     nt=mesh->nt;
-	int     np=mesh->np;
-	NTriRec *ne;
-	float3D *p1,*p=mesh->p;
-	
-	found=nonmanifold_tris(mesh);
-	
-	if(found==0)
-	{
-	    printf("no nonmanifold triangles found\n");
-	    return 0;
-	}
-	
-	p1=(float3D*)calloc(np+found*3,sizeof(float3D));
-	for(i=0;i<np;i++)
-	    p1[i]=p[i];
+    int     i,j,found;
+    int3D   *t=mesh->t,t1;
+    int     nt=mesh->nt;
+    int     np=mesh->np;
+    int     np1;
+    NTriRec *ne;
+    float3D *p1,*p=mesh->p;
+    
+    found=nonmanifold_tris(mesh);
+    
+    if(found==0)
+    {
+        printf("no nonmanifold triangles found\n");
+        return 0;
+    }
+    
+    p1=(float3D*)calloc(np+found*3,sizeof(float3D));
+    for(i=0;i<np;i++)
+        p1[i]=p[i];
+    np1=np;
 
     neighbours(mesh);
     ne=mesh->NT;
@@ -3709,6 +3711,11 @@ int fixnonmanifold_tris(Mesh *mesh)
             {
                 found++;
                 printf("triangle %i doubles triangle %i. Fixing it\n",i,ne[t[i].a].t[j]);
+                /*
+                p1[np1]=p[t.a];
+                p1[np1+1]=p[t.b];
+                p1[np2+2]=p[t.c];
+                */
                 break;
             }
         }
@@ -4331,11 +4338,12 @@ int lissencephalic(int iter, Mesh *m)
  quite working, though.
 */
 {
-    int     np;
+    int     np,np0;
     float3D *tmp,*p;
     float   *data=m->data;
     int     i,j,k;
     
+    np0=m->np;
     level(0,m);
     np=m->np;
     p=m->p;
@@ -5452,7 +5460,7 @@ int tangentLaplace(float lambda, Mesh *m)
     int     *nt=&(m->nt);
     float3D *p=m->p;
     int3D   *t=m->t;
-    float3D *tmp,dx,*tmp1,nn;
+    float3D *tmp,x,dx,*tmp1,nn;
     int     *n;
     int     i;
     
@@ -5475,6 +5483,7 @@ int tangentLaplace(float lambda, Mesh *m)
         if(n[i]==0)
         {
             printf("WARNING: isolated vertex %i\n",i);
+            x=tmp[i];
         }
         else
             tmp[i]=sca3D(tmp[i],1/(float)n[i]);
@@ -6216,7 +6225,7 @@ int main(int argc, char *argv[])
             sscanf(str," %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f ",
                 &(m[0]),&(m[1]),&(m[2]),&(m[3]),
                 &(m[4]),&(m[5]),&(m[6]),&(m[7]),
-                &(m[8]),&(m[9]),&(m[10]),&(m[11]));
+                &(m[8]),&(m[8]),&(m[10]),&(m[11]));
             applyMatrix(m,&mesh);
         }
         else
