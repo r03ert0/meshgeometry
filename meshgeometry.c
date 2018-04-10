@@ -116,6 +116,8 @@ Mesh    mesh;
 float   R;
 int     verbose=0;
 
+int smoothData(Mesh *m,float l,int niter);
+
 #pragma mark -
 float dot3D(float3D a, float3D b)
 {
@@ -1272,7 +1274,7 @@ int Asc_save_mesh(char *path, Mesh *m)
 
     // WRITE VERTICES
     for(i=0;i<*np;i++)
-        fprintf(f,"%f %f %f 0\n",p[i].x,p[i].y,p[i].z);    
+        fprintf(f,"%f %f %f 0\n",p[i].x,p[i].y,p[i].z);
 
     // WRITE TRIANGLES
     for(i=0;i<*nt;i++)
@@ -1664,8 +1666,10 @@ int Ply_load(char *path, Mesh *m)
     if(*t==NULL){printf("ERROR: Not enough memory for mesh triangles\n"); return 1;}
     for(i=0;i<*nt;i++)
         fscanf(f," 3 %i %i %i ",&((*t)[i].a),&((*t)[i].b),&((*t)[i].c));
-    if(verbose)
+    if(verbose) {
         printf("Read %i triangles\n",*nt);
+        printf("%i %i %i\n",(*t)[0].a,(*t)[0].b,(*t)[0].c);
+    }
 
     fclose(f);
     
@@ -2367,6 +2371,10 @@ int loadMesh(char *path, Mesh *m,int iformat)
     else
     {
         printf("ERROR: cannot read file: %s\n",path);
+        char cwd[1024];
+        if(getcwd(cwd,sizeof(cwd))!=NULL)
+            printf("Current working directory: %s\n", cwd);
+
         return 1;
     }
 
@@ -3435,6 +3443,60 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
     
     return 0;
 }
+int edgeLength(Mesh *m)
+{
+    if(verbose)
+        printf("edgeLength\n");
+    int         i;
+    int         nt=m->nt;
+    float3D     *p=m->p;
+    int3D       *t=m->t;
+    float       length;
+    float       s, ss;
+    float       avr, std;
+
+    s=ss=0;
+    for(i=0;i<nt;i++)
+    {
+        length=(norm3D(sub3D(p[t[i].a],p[t[i].b]))
+               +norm3D(sub3D(p[t[i].b],p[t[i].c]))
+               +norm3D(sub3D(p[t[i].c],p[t[i].a])))/3.0;
+        s+=length;
+        ss+=length*length;
+    }
+    avr=s/(float)nt;
+    std=sqrt(fabs(ss/(float)nt-pow(avr,2)));
+    printf("edgeLength: %f±%f\n",avr,std);
+
+    return 0;
+}
+int edgeLengthMinMax(Mesh *m)
+{
+    if(verbose)
+        printf("edgeLengthMinMax\n");
+    int         i;
+    int         nt=m->nt;
+    float3D     *p=m->p;
+    int3D       *t=m->t;
+    float       l0,l1,l2;
+    float       min, max;
+
+    for(i=0;i<nt;i++)
+    {
+        l0=norm3D(sub3D(p[t[i].a],p[t[i].b]));
+        l1=norm3D(sub3D(p[t[i].b],p[t[i].c]));
+        l2=norm3D(sub3D(p[t[i].c],p[t[i].a]));
+        if(i==0) { min=max=l0; }
+        if(l0<min) min=l0;
+        if(l1<min) min=l1;
+        if(l2<min) min=l2;
+        if(l0>max) max=l0;
+        if(l1>max) max=l1;
+        if(l2>max) max=l2;
+    }
+    printf("edgeLengthMinMax: %f %f\n",min,max);
+    return 1;
+}
 int fixflip(Mesh *m)
 {
     int     np=m->np;
@@ -3921,9 +3983,9 @@ int isolatedVerts(Mesh *m)
             sum++;
     }
     free(n);
-    
+
     printf("isolatedVerts: %i\n",sum);
-    
+
     return 0;
 }
 int removeIsolatedVerts(Mesh *m)
@@ -4467,7 +4529,7 @@ float stdData(Mesh *m)
         s+=data[i];
         ss+=data[i]*data[i];
     }
-    std=ss/(float)np+pow(s/(float)np,2);
+    std=sqrt(fabs(ss/(float)np-pow(s/(float)np,2)));
     printf("stdData: %f\n",std);
     return std;
 }
@@ -4916,6 +4978,174 @@ int relax(char *path, Mesh *m0,int iformat)
     free(n);
     return 0;
 }
+int repulse(Mesh *m)
+{
+    if(verbose)
+        printf("repulse vertices\n");
+    int     np=m->np;
+    int     nt=m->nt;
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *f,v;
+    float3D a,b,c;
+    float3D at,bt,ct;
+    float3D ab, bc, ca;
+    float3D fa,fb,fc;
+    int     *n;
+    float   alpha=0.3;
+    float   *beta;
+    float   tau=0.2;
+    float   *deg;
+    float   *min;
+    float   A,s,ar;
+    float   dab,dbc,dca;
+    float   ha,hb,hc;
+    float   max;
+    int     i;
+    float   totDisp=0;
+
+    f=(float3D*)calloc(np,sizeof(float3D));
+    n=(int*)calloc(np,sizeof(int));
+    beta=(float*)calloc(np,sizeof(float));
+    deg=(float*)calloc(np,sizeof(float));
+    min=(float*)calloc(nt,sizeof(float));
+    m->data=(float*)calloc(np,sizeof(float));
+
+    for(i=0;i<np;i++)
+        beta[i]=100;
+    for(i=0;i<nt;i++)
+    {
+        // triangle vertices
+        a=p[t[i].a];
+        b=p[t[i].b];
+        c=p[t[i].c];
+
+        // triangle area
+        A=triangle_area(a, b, c);
+
+        // edges and edge lengths
+        ab=sub3D(a,b);
+        bc=sub3D(b,c);
+        ca=sub3D(c,a);
+        dab=norm3D(ab);
+        dbc=norm3D(bc);
+        dca=norm3D(ca);
+
+        // triangle aspect ratio
+        s=(dab+dbc+dca)/2.0;
+        ar=dab*dbc*dca/(8*(s-dab)*(s-dbc)*(s-dca));
+
+        // mark degenerate triangles
+        if(ar>25)
+            deg[i]=ar;
+
+        // triangle altitudes
+        ha=A/dbc;
+        hb=A/dca;
+        hc=A/dab;
+
+        // compute the minimum triangle dimension
+        min[i]=ha;
+        if(min[i]>hb) min[i] = hb;
+        if(min[i]>hc) min[i] = hc;
+        if(min[i]>dab) min[i] = dab;
+        if(min[i]>dbc) min[i] = dbc;
+        if(min[i]>dca) min[i] = dca;
+
+        // repulsion forces
+        fa=sca3D(cross3D(bc,cross3D(ab,bc)),1/dbc/dbc);
+        fb=sca3D(cross3D(ca,cross3D(bc,ca)),1/dca/dca);
+        fc=sca3D(cross3D(ab,cross3D(ca,ab)),1/dab/dab);
+        fa=sca3D(fa,1/pow(ha,3));
+        fb=sca3D(fb,1/pow(hb,3));
+        fc=sca3D(fc,1/pow(hc,3));
+
+        // add forces
+        f[t[i].a]=add3D(f[t[i].a], fa);
+        f[t[i].b]=add3D(f[t[i].b], fb);
+        f[t[i].c]=add3D(f[t[i].c], fc);
+        n[t[i].a]++;
+        n[t[i].b]++;
+        n[t[i].c]++;
+    }
+    for(i=0;i<np;i++)
+        f[i]=sca3D(f[i],1/(float)n[i]);
+
+    // adapt step
+    for(i=0;i<nt;i++)
+    {
+        if(deg[i]>0)
+            continue;
+        max=norm3D(f[t[i].a]);
+        if(norm3D(f[t[i].b])>max) max=norm3D(f[t[i].b]);
+        if(norm3D(f[t[i].c])>max) max=norm3D(f[t[i].c]);
+        beta[t[i].a]=(beta[t[i].a]<alpha*min[i]/max)?(beta[t[i].a]):(alpha*min[i]/max);
+        beta[t[i].b]=(beta[t[i].b]<alpha*min[i]/max)?(beta[t[i].b]):(alpha*min[i]/max);
+        beta[t[i].c]=(beta[t[i].c]<alpha*min[i]/max)?(beta[t[i].c]):(alpha*min[i]/max);
+    }
+    for(i=0;i<np;i++)
+        if(beta[i]>1)
+            beta[i]=1;
+    for(i=0;i<np;i++)
+        f[i]=sca3D(f[i],beta[i]);
+
+    // prevent triangles from flipping, and degenerate triangles to worsen
+    for(i=0;i<nt;i++)
+    {
+        a=p[t[i].a];
+        b=p[t[i].b];
+        c=p[t[i].c];
+        at=add3D(a,f[t[i].a]);
+        bt=add3D(b,f[t[i].b]);
+        ct=add3D(c,f[t[i].c]);
+        at=sca3D(at,1/norm3D(at));
+        bt=sca3D(bt,1/norm3D(bt));
+        ct=sca3D(ct,1/norm3D(ct));
+        ab=sub3D(at,bt);
+        bc=sub3D(bt,ct);
+        ca=sub3D(ct,at);
+        if(deg[i]>0)
+        {
+            dab=norm3D(ab);
+            dbc=norm3D(bc);
+            dca=norm3D(ca);
+            s=(dab+dbc+dca)/2.0;
+            ar=dab*dbc*dca/(8.0*(s-dab)*(s-dbc)*(s-dca));
+            // worsening degenerate triangle
+            if(ar>deg[i])
+            {
+                f[t[i].a]=(float3D){0,0,0};
+                f[t[i].b]=(float3D){0,0,0};
+                f[t[i].c]=(float3D){0,0,0};
+            }
+        }
+        // inverting triangle
+        if(dot3D(cross3D(ab,bc),a)<0)
+        {
+            f[t[i].a]=(float3D){0,0,0};
+            f[t[i].b]=(float3D){0,0,0};
+            f[t[i].c]=(float3D){0,0,0};
+        }
+    }
+
+    // apply displacement to mesh
+    for(i=0;i<np;i++)
+    {
+        v=add3D(p[i],f[i]);
+        v=sca3D(v,1/norm3D(v));
+        p[i]=add3D(sca3D(p[i],(1-tau)),sca3D(v,tau));
+        totDisp+=norm3D(sub3D(v,p[i]));
+    }
+    printf("totDisp: %g\n",totDisp);
+    free(f);
+    free(n);
+    free(deg);
+    free(min);
+    free(beta);
+
+    return 0;
+}
+
 int rotate(Mesh *m, float x, float y, float z)
 {
     if(verbose)
@@ -5283,6 +5513,50 @@ int smoothData(Mesh *m,float l,int niter)
 
     return 0;
 }
+int sphereLaplace(float lambda, Mesh *m)
+{
+    if(verbose)
+        printf("sphere laplace smooth\n");
+    int     *np=&(m->np);
+    int     *nt=&(m->nt);
+    float3D *p=m->p;
+    int3D   *t=m->t;
+    float3D *tmp,x,dx;
+    float   length1, length2;
+    int     *n;
+    int     i;
+
+    tmp=(float3D*)calloc(*np,sizeof(float3D));
+    n=(int*)calloc(*np,sizeof(int));
+    for(i=0;i<*nt;i++)
+    {
+        tmp[t[i].a]=add3D(tmp[t[i].a],add3D(p[t[i].b],p[t[i].c]));
+        tmp[t[i].b]=add3D(tmp[t[i].b],add3D(p[t[i].c],p[t[i].a]));
+        tmp[t[i].c]=add3D(tmp[t[i].c],add3D(p[t[i].a],p[t[i].b]));
+        n[t[i].a]+=2;
+        n[t[i].b]+=2;
+        n[t[i].c]+=2;
+    }
+    for(i=0;i<*np;i++)
+    {
+        if(n[i]==0)
+        {
+            printf("WARNING: isolated vertex %i\n",i);
+            x=tmp[i];
+        }
+        else
+            x=sca3D(tmp[i],1/(float)n[i]);
+        dx=sub3D(x,p[i]);
+        length1=norm3D(p[i]);
+        p[i]=add3D(p[i],sca3D(dx,lambda));    // p=p+l(x-p)
+        length2=norm3D(p[i]);
+        p[i]=sca3D(p[i],length1/length2); // conserve the lenght
+    }
+    free(tmp);
+    free(n);
+    return 0;
+}
+
 int stereographic(Mesh *m)
 {
     int     i,nt;
@@ -5894,8 +6168,8 @@ void sortTriangles(Mesh *m)
 }
 int sortVerticesFunction(const void *a, const void *b)
 {
-    float3D	v1=*(float3D*)a;
-    float3D	v2=*(float3D*)b;
+    float3D v1=*(float3D*)a;
+    float3D v2=*(float3D*)b;
 
     if(v1.x==v2.x)
     {
@@ -5945,7 +6219,7 @@ void uniform(Mesh *m)
             s+=x;
             ss+=x*x;
         }
-        std=ss/(float)np+pow(s/(float)np,2);
+        std=sqrt(fabs(ss/(float)np-pow(s/(float)np,2)));
         //printf("%f\n",std);
         if(j==0)
         {
@@ -6003,91 +6277,109 @@ void printHelp(void)
 {
      printf("\
  Commands\n\
+\n\
+   Input/output\n\
     -iformat format_name                             Force input format (needs to precede imesh)\n\
     -oformat format_name                             Force output format (needs to precede omesh)\n\
     -i filename                                      Input file (also accepts -imesh)\n\
     -o filename                                      Output file (also accepts -omesh)\n\
     -odata filename                                  Output data\n\
-    \n\
-    -absgi                                           Compute absolute gyrification index\n\
+\n\
+   Mesh measurements\n\
+    -absgi                                           Print absolute gyrification index\n\
+    -area                                            Print surface area\n\
+    -boundingBox                                     Print mesh bounding box minx, miny, minz, maxx, maxy, maxz.\n\
+    -checkOrientation                                Check that normals point outside\n\
+    -edgeLength                                      Print average edge length and standard deviation\n\
+    -edgeLengthMinMax                                Print min and max edge length\n\
+    -euler                                           Print Euler characteristic\n\
+    -foldLength                                      Print total fold length\n\
+    -printCentre                                     Print coordinates of the centre of the mesh\n\
+    -printBarycentre                                 Print coordinates of the barycentre of the mesh\n\
+    -printBarycentre                                 Print coordinates of the average of all mesh vertices\n\
+    -printCentre                                     Print coordinates of the point at half width, length and height of the mesh\n\
+    -size                                            Print mesh dimensions\n\
+    -tris                                            Print number of triangles\n\
+    -verts                                           Print number of vertices\n\
+    -volume                                          Print mesh volume\n\
+    -nonmanifold                                     Print number of vertices in edges with more than 2 triangles\n\
+    -isolatedVerts                                   Print number of isolated vertices\n\
+\n\
+   Mesh modification\n\
     -add filename                                    Add mesh at filename to the current mesh\n\
     -align filename                                  Align mesh to the mesh pointed by filename, which has the same topology but different geometry\n\
-    -area                                            Surface area\n\
-    -areaMap                                         Compute surface area per vertex\n\
+    -applyMatrix m11,m12,...,m34                     Transform the vertex coordinates by multiplying them by a 4x4 matrix (the last row is set to 0,0,0,1)\n\
     -average n_meshes path1 path2 ... pathn          Compute an average of n_meshes all\n\
                                                        of the same topology\n\
     -barycentre                                      Put the mesh origin at the average of all its vertices\n\
     -barycentricProjection reference_mesh            Print barycentric coordinates for each vertex in reference_mesh\n\
-    -boundingBox                                     Display mesh bounding box minx, miny, minz, maxx, maxy, maxz.\n\
-    -checkOrientation                                Check that normals point outside\n\
     -centre                                          Put the mesh origin at half its width, length and height\n\
-    -countClusters  value                            Count clusters in texture data\n\
-    -curv                                            Compute curvature\n\
-    -depth                                           Compute sulcal depth\n\
-    -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2 or level4\n\
-    -euler                                           Print Euler characteristic\n\
+    -flip                                            Flip normals\n\
+                                                       degrees and fix them\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
     -fixFlipSphere                                   Detect flipped triangles and fix them, for spheres\n\
     -fixSmall                                        Detect triangles with an angle >160\n\
-    -flip                                            Flip normals\n\
-                                                       degrees and fix them\n\
-    -foldLength                                      Compute total fold length\n\
-    -h                                               Help\n\
-    -icurv number_of_iterations                      Integrated curvature\n\
     -invert axis                                     Invert the sign of the mesh vertices along the specified axis\n\
-    -isolatedVerts                                   Find isolated vertices\n\
-    -printCentre                                     Prints the coordinates of the centre of the mesh\n\
-    -printBarycentre                                 Prints the coordinates of the barycentre of the mesh\n\
     -laplaceSmooth lambda num_iter                   Laplace smoothing\n\
     -laplaceSmoothSelection lambda num_iter          Laplace smoothing only of the selected vertices\n\
     -lissencephalic                                  Smooth valleys and hills, not the coast\n\
     -level level_value                               Adds new vertices (and triangles) to the\n\
                                                        edges that cross level_value in the\n\
                                                        vertex data (f.ex., mean curvature)\n\
-    -addVal                                          Add value data\n\
-    -subVal                                          Subtract value from data\n\
-    -multVal                                         Multiply data time value\n\
-    -divVal                                          Divide data by value\n\
-    -divVal                                          Divide data by value\n\
-    -clip min max                                    Clip data values to the interval [min,max]\n\
-    -mean                                            Mean data value\n\
-    -min                                             Minimum data value\n\
-    -max                                             Maximum data value\n\
     -mirror coord                                    Mirror vertices in the coordinate 'coord' relative to the mesh's barycentre\n\
-    -applyMatrix m11,m12,...,m34                     Transform the vertex coordinates by multiplying them by a 4x4 matrix (the last row is set to 0,0,0,1)\n\
-    -nonmanifold                                     Detect vertices in edges with more than 2 triangles\n\
-    -normal                                          Mesh normal vectors\n\
     -normalise                                       Place all vertices at distance 100 from\n\
                                                        the origin\n\
-    -printBarycentre                                 Displays the coordinates of the average of all mesh vertices\n\
-    -printCentre                                     Displays the coordinates of the point at half width, length and height of the mesh\n\
     -randverts number_of_vertices                    Generate homogeneously distributed\n\
                                                        random vertices over the mesh\n\
     -relax filename                                  Relax current mesh to mesh at filename\n\
                                                         (both meshes have the same topology)\n\
     -removeIsolatedVerts                             Remove isolated vertices\n\
     -removeVerts                                     Remove vertices with negative vertex data values\n\
+    -repulse num_iter                                Repulse vertices with a force f=1/dist for num_iter iterations\n\
     -resample smooth_mesh reference_mesh             Resample the mesh to match the vertices\n\
                                                        and the topology of the argument mesh\n\
     -rotate x y z                                    Rotate with angles x, y and z in degrees\n\
     -scale scale_value(s)                            Multiply each vertex by \"scale\", where scale can be one number, or 3 numbers separated by commas: x,y,z\n\
-    -selection option                                Select vertices. Options are: none, all, invert, erode, dilate\n\
-    -selectFlip                                      Select flipped triangles\n\
-    -selectFlipSphere                                Select flipped triangles, for spherical meshes\n\
-    -size                                            Display mesh dimensions\n\
+    -sphereLaplaceSmooth lambda num_iter             Laplace smoothing that conserves the norms of the mesh vertices, i.e., spheres stay spheres\n\
     -sortTriangles                                   Sort the triangles in the mesh file along the x axis\n\
     -stereographic                                   Stereographic projection\n\
     -subdivide                                       Subdivide the mesh using 1 iteration of Kobbelt's sqrt(3) algorithm\n\
     -tangentLaplace lambda number_of_iterations      Laplace smoothing tangential to the mesh surface\n\
     -taubinSmooth lambda mu number_of_iterations     Taubin Smoothing\n\
     -translate x y z                                 Translatory motion x,y,z\n\
+\n\
+   Vertex value modification\n\
+    -addVal                                          Add value data\n\
+    -subVal                                          Subtract value from data\n\
+    -multVal                                         Multiply data time value\n\
+    -divVal                                          Divide data by value\n\
+    -divVal                                          Divide data by value\n\
+    -clip min max                                    Clip data values to the interval [min,max]\n\
+    -areaMap                                         Compute surface area per vertex\n\
+    -countClusters  value                            Count clusters in texture data\n\
+    -curv                                            Compute curvature\n\
+    -depth                                           Compute sulcal depth\n\
+    -icurv number_of_iterations                      Integrated curvature\n\
     -smoothData lambda number_of_iterations          Laplace smoothing of data, lambda=0 -> no smoothing, lambda=1 -> each vertex value to neighbour's average\n\
     -threshold value 0:down/1:up                     Threshold texture data\n\
-    -tris                                            Display number of triangles\n\
+    -normal                                          Store mesh normal vectors as vertex values\n\
+\n\
+   Vertex value measurements\n\
+    -mean                                            Print mean data value\n\
+    -min                                             Print minimum data value\n\
+    -max                                             Print maximum data value\n\
+\n\
+   Selections\n\
+    -selection option                                Select vertices. Options are: none, all, invert, erode, dilate\n\
+    -selectFlip                                      Select flipped triangles\n\
+    -selectFlipSphere                                Select flipped triangles, for spherical meshes\n\
+\n\
+   General\n\
+    -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2 or level4\n\
+    -h                                               Help\n\
     -v                                               Verbose mode\n\
-    -verts                                           Display number of vertices\n\
-    -volume                                          Compute mesh volume\n\
-    \n\
+\n\
+   File formats\n\
     Meshgeometry can read and write several formats, based on the file extension:\n\
     .orig, .pial, .white, .inflated, .sphere, .reg   Freesurfer meshes\n\
     .curv, .sulc, .sratio                            Freesurfer data\n\
@@ -6267,6 +6559,16 @@ int main(int argc, char *argv[])
             depth(mesh.data,&mesh);
         }
         else
+        if(strcmp(argv[i],"-edgeLength")==0)    // print average edge length and std
+        {
+            edgeLength(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-edgeLengthMinMax")==0)    // print min and max edge length
+        {
+            edgeLengthMinMax(&mesh);
+        }
+        else
         if(strcmp(argv[i],"-icurv")==0)
         {
             if(mesh.data==NULL)
@@ -6304,6 +6606,25 @@ int main(int argc, char *argv[])
             N=atoi(argv[++i]);
             for(j=0;j<N;j++)
                 laplace(l,&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-repulse")==0)
+        {
+            int j,niter;
+            niter=atoi(argv[++i]);
+            for(j=0;j<niter;j++)
+                repulse(&mesh);
+        }
+        else
+        if(strcmp(argv[i],"-sphereLaplaceSmooth")==0)
+        {
+            int     j,N;
+            float   l;
+            
+            l=atof(argv[++i]);
+            N=atoi(argv[++i]);
+            for(j=0;j<N;j++)
+                sphereLaplace(l,&mesh);
         }
         else
         if(strcmp(argv[i],"-laplaceSmoothSelection")==0)

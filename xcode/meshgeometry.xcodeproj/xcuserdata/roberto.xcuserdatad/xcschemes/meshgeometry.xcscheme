@@ -64,6 +64,10 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-v -i /Users/roberto/Documents/annex-ferret-mri/scratch/work_roberto/msm/msm-v0.0.1/derived/F01_Adult/surf.curv"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-i /Users/roberto/Desktop/homogeneous/surf.sphere-14855.ply -repulse 1"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
