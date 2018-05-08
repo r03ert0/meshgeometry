@@ -3708,10 +3708,12 @@ int fixNonmanifold_verts(Mesh *mesh)
             {
                 if(i1[k]==j)
                 {
-                    printf(" | ");
+                    if(verbose)
+                        printf(" | ");
                     k++;
                 }
-                printf("%i ",t1[j]);
+                if(verbose)
+                    printf("%i ",t1[j]);
                 if(k>1)
                 {
                     if(t[t1[j]].a==i)   t[t1[j]].a=np+(k-2);
@@ -3719,7 +3721,8 @@ int fixNonmanifold_verts(Mesh *mesh)
                     if(t[t1[j]].c==i)   t[t1[j]].c=np+(k-2);
                 }
             }
-            printf("\n");
+            if(verbose)
+                printf("\n");
             free(mesh->p);
             mesh->p=p1;
             mesh->np=np+e_length-1;
@@ -4575,7 +4578,7 @@ int nonmanifold_verts(Mesh *mesh)
     int *t1,t1_length;
     int *i1,i1_length;
     int sum=0;
-   
+
     neighbours(mesh);
     ne=mesh->NT;
 
@@ -4654,12 +4657,13 @@ int nonmanifold_verts(Mesh *mesh)
         free(t1);
         free(i1);
 
-        if(ne[i].n==0)      printf("WARNING, %i is isolated: remove it\n",i);
-        else if(ne[i].n==1) printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
-        else if(loop==0)    printf("WARNING, %i is in a degenerate region: examine more in detail\n",i);
+        if(ne[i].n==0 && verbose)      printf("WARNING, %i is isolated: remove it\n",i);
+        else if(ne[i].n==1 && verbose) printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
+        else if(loop==0 && verbose)    printf("WARNING, %i is in a degenerate region: examine more in detail\n",i);
         else if(e_length>1)
         {
-            printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
+            if(verbose)
+                printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
             sum++;
         }
         else
