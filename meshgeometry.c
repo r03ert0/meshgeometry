@@ -3683,18 +3683,19 @@ int fixNonmanifold_verts(Mesh *mesh)
         }
         free(e);
 
-        if(ne[i].n==0)
+        if(ne[i].n==0 && verbose)
             printf("WARNING, %i is isolated: remove it\n",i);
         else
-        if(ne[i].n==1)
+        if(ne[i].n==1 && verbose)
             printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
         else
-        if(loop==0)
+        if(loop==0 && verbose)
             printf("\nWARNING, %i is in a degenerate region: examine more in detail\n",i);
         else
         if(e_length>1)
         {
-            printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
+            if(verbose)
+                printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
             
             p1=(float3D*)calloc(np+e_length-1,sizeof(float3D));
             for(l=0;l<np;l++)
