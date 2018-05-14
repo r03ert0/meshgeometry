@@ -2276,7 +2276,7 @@ void printTriangleAndVertices(Mesh *m, int i)
 int freeMesh(Mesh *m)
 {
     if(verbose) printf("* freeMesh\n");
-    
+
     free(m->p);
     free(m->t);
     if(m->data)
@@ -2285,6 +2285,7 @@ int freeMesh(Mesh *m)
         free(m->selection);
     if(m->NT)
         free(m->NT);
+
     return 0;
 }
 int loadMesh(char *path, Mesh *m,int iformat)
@@ -2394,7 +2395,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
     amesh.t=NULL;
     amesh.data=NULL;
     amesh.NT=NULL;
-    
+
     loadMesh(path,&amesh,iformat);
 
     m1=(Mesh*)calloc(1,sizeof(Mesh));
@@ -2402,7 +2403,8 @@ int addMesh(char *path, Mesh *m0,int iformat)
     m1->nt=m0->nt+amesh.nt;
     m1->p=(float3D*)calloc(m0->np+amesh.np,sizeof(float3D));
     m1->t=(int3D*)calloc(m0->nt+amesh.nt,sizeof(int3D));
-    
+    m1->selection = (char*)calloc(m0->nt+amesh.nt,sizeof(char));
+
     // add points
     for(i=0;i<m0->np;i++)
         m1->p[i]=m0->p[i];
@@ -2414,7 +2416,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
         m1->t[i]=m0->t[i];
     for(i=0;i<amesh.nt;i++)
         m1->t[m0->nt+i]=(int3D){amesh.t[i].a+m0->np,amesh.t[i].b+m0->np,amesh.t[i].c+m0->np};
-    
+
     // free tmp mesh
     freeMesh(&amesh);
 
@@ -2424,7 +2426,8 @@ int addMesh(char *path, Mesh *m0,int iformat)
     m0->nt=m1->nt;
     m0->p=m1->p;
     m0->t=m1->t;
-        
+    m0->selection=m1->selection;
+
     return 0;
 }
 int saveMesh(char *path, Mesh *m, int oformat)
