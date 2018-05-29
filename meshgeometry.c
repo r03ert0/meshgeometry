@@ -3322,7 +3322,7 @@ void depth(float *C, Mesh *m)
     for(i=0;i<np;i++)
         C[i]=C[i]/max;
 }
-int drawSurface(Mesh *m,char *cmap,char *tiff_path)
+int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
 {
     int		i;
     char	*addr;      // memory for tiff image
@@ -3331,7 +3331,6 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
     float	zoom=1/4.0;
     float3D	a,b,c;
     float3D back={0xff,0xff,0xff};  // background colour
-    int     toonFlag=0;
     int     np=m->np;
     int     nt=m->nt;
     int3D   *t=m->t;
@@ -5479,7 +5478,7 @@ int smooth(Mesh *m)
 int smoothData(Mesh *m,float l,int niter)
 {
     if(verbose) printf("* smoothData lambda:%f N:%i\n",l,niter);
-    
+
     int     np=m->np;
     int     nt=m->nt;
     int3D   *t=m->t;
@@ -6384,6 +6383,7 @@ void printHelp(void)
 \n\
    General\n\
     -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2 or level4\n\
+    -drawSurfaceToon colourmap path                  draw surface using toon rendering in tiff format, colourmap is grey, rainbow, level2 or level4\n\
     -h                                               Help\n\
     -v                                               Verbose mode\n\
 \n\
@@ -6832,7 +6832,14 @@ int main(int argc, char *argv[])
         {
             char   *cmap=argv[++i];
             char   *tiff_path=argv[++i];
-            drawSurface(&mesh,cmap,tiff_path);
+            drawSurface(&mesh,cmap,tiff_path,0);
+        }
+        else
+        if(strcmp(argv[i],"-drawSurfaceToon")==0)
+        {
+            char   *cmap=argv[++i];
+            char   *tiff_path=argv[++i];
+            drawSurface(&mesh,cmap,tiff_path,1);
         }
         else
         if(strcmp(argv[i],"-mirror")==0)
