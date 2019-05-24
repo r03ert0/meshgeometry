@@ -6819,8 +6819,8 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-translate")==0)    // translate x, y, z
         {
-        translate(atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]),&mesh);
-        i+=3;
+            translate(atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]),&mesh);
+            i+=3;
         }
         else
         if(strcmp(argv[i],"-centre")==0)
