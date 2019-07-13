@@ -2092,16 +2092,7 @@ int VTK_save_mesh(char *path, Mesh *m)
     // WRITE VERTICES
     fprintf(f,"POINTS %i float\n",*np);
     for(i=0;i<*np;i++)
-    {
         fprintf(f,"%f %f %f\n", p[i].x,p[i].y,p[i].z);
-        /*
-        // this version writes more than one 3d coordinate per line
-        fprintf(f,"%f %f %f ", p[i].x,p[i].y,p[i].z);
-        if(i%3==0)
-            fprintf(f,"\n");
-        */
-    }
-    fprintf(f,"\n");
 
     // WRITE TRIANGLES
     fprintf(f,"POLYGONS %i %i\n",*nt,*nt*4);
@@ -6315,6 +6306,7 @@ void checkVersion(char *home)
         return;
     }
 
+    printf("meshgeometry, version from %s", v_local);
     if(strcmp(v_local, v_remote) == 0)
         printf("Code is up to date.\n");
     else
