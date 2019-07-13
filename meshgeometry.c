@@ -11,11 +11,11 @@ char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add
 
 /*
     To use:
-    
+
     ./meshgeometry_mac -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.inflated -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.curv -drawSurface bert.tif lat
 
     To compile:
-    
+
     On Mac OS X:
     gcc -Wall meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
 
@@ -51,7 +51,7 @@ char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add
 #define kMAXNETRIS          100
 #define kFreeSurferMesh     1
 #define kFreeSurferData     2
-#define kFreeSurferAnnot    3    
+#define kFreeSurferAnnot    3
 #define kBrainVisaMesh      4
 #define kFloatData          5
 #define kRawFloatData       6
@@ -152,7 +152,7 @@ float3D normal3D(int i, Mesh *m)
     float3D *p=m->p;
     int3D   *t=m->t;
     float3D N;
-    
+
     N=cross3D(sub3D(p[t[i].b],p[t[i].a]),sub3D(p[t[i].c],p[t[i].a]));
     return sca3D(N,1/norm3D(N));
 }
@@ -177,7 +177,7 @@ int multMatVec(float *m, float3D v, float3D *result)
     result->x=r.x;
     result->y=r.y;
     result->z=r.z;
-    
+
     return 0;
 }
 
@@ -191,7 +191,7 @@ void checkEndianness(void)
 {
     char    b[]={1,0,0,0};
     int     num=*(int*)b;
-    
+
     if(num==16777216)
         endianness=kMOTOROLA;
     else
@@ -201,14 +201,14 @@ void swapint(int *n)
 {
     char    *by=(char*)n;
     char    sw[4]={by[3],by[2],by[1],by[0]};
-    
+
     *n=*(int*)sw;
 }
 void swapfloat(float *n)
 {
     char    *by=(char*)n;
     char    sw[4]={by[3],by[2],by[1],by[0]};
-    
+
     *n=*(float*)sw;
 }
 void swaptriangles(Mesh *m)
@@ -216,7 +216,7 @@ void swaptriangles(Mesh *m)
     int     nt=m->nt;
     int3D   *t=m->t;
     int     i;
-    
+
     for(i=0;i<nt;i++)
     {
         swapint(&t[i].a);
@@ -229,7 +229,7 @@ void swapvertices(Mesh *m)
     int     np=m->np;
     float3D *p=m->p;
     int     i;
-    
+
     for(i=0;i<np;i++)
     {
         swapfloat(&p[i].x);
@@ -243,17 +243,17 @@ float triangle_area(float3D p0, float3D p1, float3D p2)
     float   a,b,c;    // side lengths
     float   s;        // semiperimeter
     float   area;
-    
+
     a=norm3D(sub3D(p0,p1));
     b=norm3D(sub3D(p1,p2));
     c=norm3D(sub3D(p2,p0));
     s=(a+b+c)/2.0;
-    
+
     if(s*(s-a)*(s-b)*(s-c)<0)
         area=0;
     else
         area=sqrt(s*(s-a)*(s-b)*(s-c));
-    
+
     return area;
 }
 // Adapted from intersect_RayTriangle()
@@ -285,11 +285,11 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
     u[0]=p[T.b].x-p[T.a].x;
     u[1]=p[T.b].y-p[T.a].y;
     u[2]=p[T.b].z-p[T.a].z;
-    
+
     v[0]=p[T.c].x-p[T.a].x;
     v[1]=p[T.c].y-p[T.a].y;
     v[2]=p[T.c].z-p[T.a].z;
-    
+
     n[0]=u[1]*v[2]-u[2]*v[1];
     n[1]=u[2]*v[0]-u[0]*v[2];
     n[2]=u[0]*v[1]-u[1]*v[0];
@@ -303,14 +303,14 @@ int intersect_VectorTriangle(float3D x, int i, float *c0, float *c1, Mesh *m)
     dir[0]=x.x;
     dir[1]=x.y;
     dir[2]=x.z;
-    
+
     w0[0] = -p[T.a].x;
     w0[1] = -p[T.a].y;
     w0[2] = -p[T.a].z;
-    
+
     a = n[0]*w0[0]+n[1]*w0[1]+n[2]*w0[2];    //a = dot3D(n,w0);
     b = n[0]*dir[0]+n[1]*dir[1]+n[2]*dir[2]; //b = dot3D(n,dir);
-    
+
     if (b>-EPSILON && b<EPSILON) { // ray is parallel to triangle plane
         if (a == 0.0)              // ray lies in triangle plane
             return 2;
@@ -364,7 +364,7 @@ void neighbours(Mesh *m)
     int3D   *t=m->t;
     NTriRec **NT=&(m->NT);
     int     i;
-        
+
     if(*NT)
         free(*NT);
     *NT=(NTriRec*)calloc(np,sizeof(NTriRec));
@@ -372,7 +372,7 @@ void neighbours(Mesh *m)
     {
         printf("ERROR: Cannot create NT structure in neighbours() function\n");
         return;
-    }       
+    }
     for(i=0;i<nt;i++)
     {
         ((*NT)[t[i].a]).t[((*NT)[t[i].a]).n++] = i;
@@ -481,7 +481,7 @@ int getformatindex(char *path)
     int     i,n=sizeof(formats)/sizeof(long); // number of recognised formats
     int     found,index;
     char    *extension;
-    
+
     for(i=strlen(path);i>=0;i--)
         if(path[i]=='.')
             break;
@@ -491,14 +491,14 @@ int getformatindex(char *path)
         return 0;
     }
     extension=path+i+1;
-    
+
     for(i=0;i<n;i++)
     {
         found=(strcmp(formats[i],extension)==0);
         if(found)
             break;
     }
-    
+
     index=-1;
     if(i==0 || i==1 || i==2 || i==8 || i==9 ||i==11)
     {
@@ -653,7 +653,7 @@ int getformatindex(char *path)
         if(verbose)
             printf("Format: Asc Mesh\n");
     }
-        
+
     return index;
 }
 #pragma mark -
@@ -669,7 +669,7 @@ int FreeSurfer_load_mesh(char *path, Mesh *m)
 
 
     f=fopen(path,"r");
-    
+
     if(f==NULL)
         return 1;
 
@@ -700,7 +700,7 @@ int FreeSurfer_load_mesh(char *path, Mesh *m)
             }
     }
     fclose(f);
-    
+
     return 0;
 }
 int FreeSurfer_load_data(char *path, Mesh *m)
@@ -733,13 +733,13 @@ int FreeSurfer_load_data(char *path, Mesh *m)
         *np=*(int*)byte4;
         if(verbose)
             printf("FS #vertex_data %i\n",*np);
-        
+
         *data=(float*)calloc(*np,sizeof(float));
-        
+
         // disregard FaceCount and ValsPerVertex
         fgetc(f);fgetc(f);fgetc(f);fgetc(f);
         fgetc(f);fgetc(f);fgetc(f);fgetc(f);
-        
+
         // read vertex data
         for(j=0;j<*np;j++)
         {
@@ -752,9 +752,9 @@ int FreeSurfer_load_data(char *path, Mesh *m)
     }
     if(verbose)
         printf("FSData finished\n");
-    
+
     fclose(f);
-    
+
     return 0;
 }
 int FreeSurfer_load_annot(char *path, Mesh *m)
@@ -770,7 +770,7 @@ int FreeSurfer_load_annot(char *path, Mesh *m)
     f=fopen(path,"r");
     if(f==NULL)
         return 0;
-    
+
     fread(&n,1,sizeof(int),f);
     if(endianness==kINTEL)
         swapint(&n);
@@ -818,7 +818,7 @@ int FreeSurfer_load_mghdata(char *path, Mesh *m)
     f=fopen(path,"r");
     if(f==NULL)
         return 1;
-    
+
     fread(&v,1,sizeof(int),f);          swapint(&v);
     fread(&ndim1,1,sizeof(int),f);      swapint(&ndim1);
     fread(&ndim2,1,sizeof(int),f);      swapint(&ndim2);
@@ -826,7 +826,7 @@ int FreeSurfer_load_mghdata(char *path, Mesh *m)
     fread(&nframes,1,sizeof(int),f);    swapint(&nframes);
     fread(&type,1,sizeof(int),f);       swapint(&type);
     fread(&dof,1,sizeof(int),f);        swapint(&dof);
-    
+
     if(verbose)
     {
         printf("version:%i\n",v);
@@ -837,7 +837,7 @@ int FreeSurfer_load_mghdata(char *path, Mesh *m)
         printf("type:%i\n",type);
         printf("dof:%i\n\n",dof);
     }
-    
+
     *np=ndim1*ndim2*ndim3;
     *data=(float*)calloc(*np,sizeof(float));
     fseek(f,64*4,SEEK_CUR);
@@ -847,7 +847,7 @@ int FreeSurfer_load_mghdata(char *path, Mesh *m)
         swapfloat(&((*data)[i]));
     }
     fclose(f);
-    
+
     return 0;
 }
 
@@ -865,10 +865,10 @@ int FreeSurfer_save_mesh(char *path, Mesh *m)
     int3D   itmp;
 
     f=fopen(path,"w");
-    
+
     if(f==NULL)
         return 1;
-    
+
     // write data identifier: 3 bytes
     a=id>>16;
     b=(id&0xff00)>>8;
@@ -876,7 +876,7 @@ int FreeSurfer_save_mesh(char *path, Mesh *m)
     fputc((char)a,f);
     fputc((char)b,f);
     fputc((char)c,f);
-    
+
     // write date and info (EMPTY)
     date[5]=(char)10;
     info[5]=(char)10;
@@ -933,10 +933,10 @@ int FreeSurfer_save_data(char *path, Mesh *m)
     float   x;
 
     f=fopen(path,"w");
-    
+
     if(f==NULL)
         return 1;
-    
+
     // write data identifier: 3 bytes
     a=id>>16;
     b=(id&0xff00)>>8;
@@ -944,7 +944,7 @@ int FreeSurfer_save_data(char *path, Mesh *m)
     fputc((char)a,f);
     fputc((char)b,f);
     fputc((char)c,f);
-    
+
     n=*np;
     if(endianness==kINTEL)
     {
@@ -984,7 +984,7 @@ int FreeSurfer_save_mghdata(char *path, Mesh *m)
     f=fopen(path,"w");
     if(f==NULL)
         return 1;
-    
+
     v=1;
     ndim1=np;
     ndim2=1;
@@ -992,7 +992,7 @@ int FreeSurfer_save_mghdata(char *path, Mesh *m)
     nframes=1;
     type=3;
     dof=0;
-    
+
     swapint(&v);        fwrite(&v,1,sizeof(int),f);
     swapint(&ndim1);    fwrite(&ndim1,1,sizeof(int),f);
     swapint(&ndim2);    fwrite(&ndim2,1,sizeof(int),f);
@@ -1000,17 +1000,17 @@ int FreeSurfer_save_mghdata(char *path, Mesh *m)
     swapint(&nframes);  fwrite(&nframes,1,sizeof(int),f);
     swapint(&type);     fwrite(&type,1,sizeof(int),f);
     swapint(&dof);      fwrite(&dof,1,sizeof(int),f);
-    
+
     fseek(f,64*4,SEEK_CUR);
     for(i=0;i<np;i++)
     {
         x=data[i];
         swapfloat(&x);
         fwrite(&x,1,sizeof(float),f);
-        
+
     }
     fclose(f);
-    
+
     return 0;
 }
 int BrainVisa_load_mesh(char *path, Mesh *m)
@@ -1023,10 +1023,10 @@ int BrainVisa_load_mesh(char *path, Mesh *m)
     char    tmp[6];
     int     i;
     int     endian,ignore;
-    
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // READ HEADER
     // get format (ascii, binar)
     fread(tmp,5,sizeof(char),f); tmp[5]=(char)0;
@@ -1034,7 +1034,7 @@ int BrainVisa_load_mesh(char *path, Mesh *m)
     {
         for(i=0;i<4;i++) tmp[i]=fgetc(f); tmp[4]=(char)0;
         endian=-1;
-        if(strcmp(tmp,"ABCD")==0)    endian=kMOTOROLA;    
+        if(strcmp(tmp,"ABCD")==0)    endian=kMOTOROLA;
         if(strcmp(tmp,"DCBA")==0)    endian=kINTEL;
         if(endian==-1){ printf("ERROR: Not ABCD nor DCBA order...exit.\n"); return 1;}
         fread(&ignore,4,sizeof(char),f);        // ignore "VOID" string length
@@ -1045,22 +1045,22 @@ int BrainVisa_load_mesh(char *path, Mesh *m)
         if(ignore!=3){ printf("ERROR: Only able to read triangle meshes. This mesh has %i vertices per polygon.\n",ignore); return 1;}
         fread(&ignore,1,sizeof(int),f);         // ignore time steps
         fread(&ignore,1,sizeof(int),f);         // ignore time step index
-        
+
         // READ VERTICES
         fread(np,1,sizeof(int),f);              // read number of vertices
         if(endian!=endianness)
             swapint(np);
         (*p) = (float3D*)calloc(*np,sizeof(float3D));
         if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
-        fread((char*)(*p),*np,3*sizeof(float),f);  if(endian!=endianness) swapvertices(m);    
+        fread((char*)(*p),*np,3*sizeof(float),f);  if(endian!=endianness) swapvertices(m);
         if(verbose)
             printf("Read %i vertices\n",*np);
-        
+
         // IGNORE NORMAL VECTORS
         fseek(f,sizeof(int),SEEK_CUR);          // ignore normal vectors
         fseek(f,*np*sizeof(float3D),SEEK_CUR);
         fread(&ignore,1,sizeof(int),f);         // ignore number of texture coordinates
-        
+
         // READ TRIANGLES
         fread(nt,1,sizeof(int),f);              // read number of triangles
         if(endian!=endianness)
@@ -1076,18 +1076,18 @@ int BrainVisa_load_mesh(char *path, Mesh *m)
     {
         fscanf(f," %*s ");            // ignore VOID
         fscanf(f," %*i %*i %*i ");    // ignore 3 integers
-        
+
         // READ 3-D COORDINATES
         fscanf(f," %i ",np);
         *p=(float3D*)calloc(*np,sizeof(float3D));
         for(i=0;i<*np;i++)
             fscanf(f," ( %f , %f , %f ) ", &((*p)[i].x),&((*p)[i].y),&((*p)[i].z));
-        
+
         fscanf(f," %*i ");            // ignore number of normal vectors
         for(i=0;i<*np;i++)            // ignore normal vectors
             fscanf(f," ( %*f , %*f , %*f ) ");
         fscanf(f," %*i ");            // ignore an integer
-        
+
         // READ TRIANGLES
         fscanf(f," %i ",nt);
         *t=(int3D*)calloc(*nt,sizeof(int3D));
@@ -1099,9 +1099,9 @@ int BrainVisa_load_mesh(char *path, Mesh *m)
         printf("ERROR: Cannot read '%s' format.\n",tmp);
         return 1;
     }
-    
+
     fclose(f);
-    
+
     return 0;
 }
 int BrainVisa_save_mesh(char *path, Mesh *m)
@@ -1112,15 +1112,15 @@ int BrainVisa_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
         fprintf(f,"ascii\n");
-    
+
         fprintf(f,"VOID\n");    // ignore VOID
         fprintf(f,"3\n1\n0\n");    // ignore 3 integers
-        
+
         // WRITE 3-D COORDINATES
         fprintf(f,"%i\n",*np);
         for(i=0;i<*np;i++)
@@ -1128,14 +1128,14 @@ int BrainVisa_save_mesh(char *path, Mesh *m)
         fprintf(f,"\n");
         fprintf(f,"0\n");            // ignore number of normal vectors
         fprintf(f,"0\n");            // ignore an integer
-        
+
         // WRITE TRIANGLES
         fprintf(f,"%i\n",*nt);
         for(i=0;i<*nt;i++)
             fprintf(f,"(%i,%i,%i) ",t[i].a,t[i].b,t[i].c);
         fprintf(f,"\n");
     fclose(f);
-    
+
     return 0;
 }
 int Text_load(char *path, Mesh *m)
@@ -1148,20 +1148,20 @@ int Text_load(char *path, Mesh *m)
     FILE    *f;
     int     i;
     char    str[512];
-    
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // READ HEADER
     fgets(str,511,f);
     sscanf(str," %i %i ",np,&nt_tmp);
-    
+
     if(nt_tmp==1)    // mesh data file, dimension 1
     {
         *data=(float*)calloc(*np,sizeof(float));
         if(data==NULL){printf("ERROR: Not enough memory for mesh data\n");return 1;}
         for(i=0;i<*np;i++)
-            fscanf(f," %f ",&((*data)[i]));    
+            fscanf(f," %f ",&((*data)[i]));
         if(verbose)
             printf("Read %i data values\n",*np);
 
@@ -1172,10 +1172,10 @@ int Text_load(char *path, Mesh *m)
         *p=(float3D*)calloc(*np,sizeof(float3D));
         if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
         for(i=0;i<*np;i++)
-            fscanf(f," %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));    
+            fscanf(f," %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));
         if(verbose)
             printf("Read %i vertices\n",*np);
-    
+
         // READ TRIANGLES
         *nt=nt_tmp;
         *t = (int3D*)calloc(*nt,sizeof(int3D));
@@ -1187,7 +1187,7 @@ int Text_load(char *path, Mesh *m)
     }
 
     fclose(f);
-    
+
     return 0;
 }
 int Text_save_mesh(char *path, Mesh *m)
@@ -1198,23 +1198,23 @@ int Text_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // WRITE HEADER
     fprintf(f,"%i %i\n",*np,*nt);
 
     // WRITE VERTICES
     for(i=0;i<*np;i++)
-        fprintf(f,"%f %f %f\n",p[i].x,p[i].y,p[i].z);    
+        fprintf(f,"%f %f %f\n",p[i].x,p[i].y,p[i].z);
 
     // WRITE TRIANGLES
     for(i=0;i<*nt;i++)
         fprintf(f,"%i %i %i\n",t[i].a,t[i].b,t[i].c);
 
     fclose(f);
-    
+
     return 0;
 }
 int Asc_load(char *path, Mesh *m)
@@ -1226,20 +1226,20 @@ int Asc_load(char *path, Mesh *m)
     FILE    *f;
     int     i;
     char    str[512];
-    
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // READ HEADER
     fgets(str,511,f); // ignore identification line
     fgets(str,511,f);
     sscanf(str," %i %i ",np,&nt_tmp);
-    
+
     // READ VERTICES
     *p=(float3D*)calloc(*np,sizeof(float3D));
     if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
     for(i=0;i<*np;i++)
-        fscanf(f," %f %f %f %*i ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));    
+        fscanf(f," %f %f %f %*i ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));
     if(verbose)
         printf("Read %i vertices\n",*np);
 
@@ -1253,7 +1253,7 @@ int Asc_load(char *path, Mesh *m)
         printf("Read %i triangles\n",*nt);
 
     fclose(f);
-    
+
     return 0;
 }
 int Asc_save_mesh(char *path, Mesh *m)
@@ -1264,10 +1264,10 @@ int Asc_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // WRITE HEADER
     fprintf(f,"#!ascii by meshgeometry with love\n"); // identification line
     fprintf(f,"%i %i\n",*np,*nt);
@@ -1293,14 +1293,14 @@ int Text_save_data(char *path, Mesh *m)
     float   *data=m->data;
     FILE    *f;
     int     i,j;
-    
+
     f=fopen(path,"w");
     if(f==NULL)
     {
         printf("ERROR: Cannot open file\n");
         return 1;
     }
-    
+
     // WRITE HEADER
     fprintf(f,"%i %i 3\n",*np,m->ddim);
 
@@ -1315,7 +1315,7 @@ int Text_save_data(char *path, Mesh *m)
     }
 
     fclose(f);
-    
+
     return 0;
 }
 int VRML_load_mesh(char *path, Mesh *m)
@@ -1332,7 +1332,7 @@ int VRML_load_mesh(char *path, Mesh *m)
 
     *np=0;
     *nt=0;
-    
+
     loop=1;
     while(loop)
     {
@@ -1369,7 +1369,7 @@ int VRML_load_mesh(char *path, Mesh *m)
     *p = (float3D*)calloc(*np,sizeof(float3D));
     *t = (int3D*)calloc(*nt,sizeof(int3D));
     fseek(f,0,SEEK_SET);
-   
+
     loop=1;
     while(loop)
     {
@@ -1422,7 +1422,7 @@ int VRML_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     fprintf(f,"#VRML V1.0 ascii\n");
     fprintf(f,"Separator {\n");
@@ -1456,26 +1456,26 @@ int CivetObj_load_mesh(char *path, Mesh *m)
     FILE    *f;
     int     i;
     char    str[512];
-    
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // READ HEADER
     fgets(str,511,f);
     sscanf(str," %*c %*f %*f %*f %*i %*i %i ",np);
-    
+
     // READ VERTICES
     *p = (float3D*)calloc(*np,sizeof(float3D));
     if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
     for(i=0;i<*np;i++)
-        fscanf(f," %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));    
+        fscanf(f," %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));
     if(verbose)
         printf("Read %i vertices\n",*np);
-    
+
     // IGNORE NORMALS
 //    fgets(str,511,f); // skip empty line
     for(i=0;i<*np;i++)
-        fscanf(f," %*f %*f %*f ");    
+        fscanf(f," %*f %*f %*f ");
 
     // READ TRIANGLES
 //    fgets(str,511,f);     // skip empty line
@@ -1491,7 +1491,7 @@ int CivetObj_load_mesh(char *path, Mesh *m)
         printf("Read %i triangles\n",*nt);
 
     fclose(f);
-    
+
     return 0;
 }
 int CivetObj_save_mesh(char *path, Mesh *m)
@@ -1502,10 +1502,10 @@ int CivetObj_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // WRITE HEADER
     fprintf(f,"P 0.3 0.3 0.4 10 1 %i\n",*np);
 
@@ -1513,19 +1513,19 @@ int CivetObj_save_mesh(char *path, Mesh *m)
     for(i=0;i<*np;i++)
         fprintf(f,"%f %f %f\n",p[i].x,p[i].y,p[i].z);
     fprintf(f,"\n");
-    
+
     // WRITE DUMMY NORMALS
     for(i=0;i<*np;i++)
         fprintf(f,"0 0 0\n");
     fprintf(f,"\n");
-    
+
     // WRITE NUMBER OF TRIANGLES
     fprintf(f,"%i\n",*nt);
-    
+
     // WRITE 5 DUMMY NUMBERS
     fprintf(f,"0 1 1 1 1 1\n");
     fprintf(f,"\n");
-    
+
     // WRITE nt MULTIPLES OF 3, IN ROWS OF EIGHT
     for(i=0;i<*nt;i++)
     {
@@ -1540,7 +1540,7 @@ int CivetObj_save_mesh(char *path, Mesh *m)
         fprintf(f,"%i %i %i\n",t[i].a,t[i].b,t[i].c);
 
     fclose(f);
-    
+
     return 0;
 }
 int Obj_load(char *path, Mesh *m)
@@ -1552,7 +1552,7 @@ int Obj_load(char *path, Mesh *m)
     FILE    *f;
     char    str[1024],s[16];
     int     n;
-    
+
     f=fopen(path,"r");
     *np=*nt=0;
     while(!feof(f))
@@ -1565,13 +1565,13 @@ int Obj_load(char *path, Mesh *m)
             (*nt)++;
     }
     fclose(f);
-    
+
     *p = (float3D*)calloc(*np,sizeof(float3D));
     if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
     *t = (int3D*)calloc(*nt,sizeof(int3D));
     if(*t==NULL){printf("ERROR: Not enough memory for mesh triangles\n");return 1;}
 
-    f=fopen(path,"r"); 
+    f=fopen(path,"r");
     *np=*nt=0;
     while(!feof(f))
     {
@@ -1608,18 +1608,18 @@ int Obj_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     for(i=0;i<*np;i++)
         fprintf(f,"v %f %f %f\n",p[i].x,p[i].y,p[i].z);
-    
+
     for(i=0;i<*nt;i++)
         fprintf(f,"f %i %i %i\n",t[i].a+1,t[i].b+1,t[i].c+1);
 
     fclose(f);
-    
+
     return 0;
 }
 int Ply_load(char *path, Mesh *m)
@@ -1631,7 +1631,7 @@ int Ply_load(char *path, Mesh *m)
     FILE    *f;
     int     i,x;
     char    str[512],str1[256],str2[256];
-        
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
 
@@ -1657,7 +1657,7 @@ int Ply_load(char *path, Mesh *m)
     *p = (float3D*)calloc(*np,sizeof(float3D));
     if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
     for(i=0;i<*np;i++)
-        fscanf(f," %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));    
+        fscanf(f," %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));
     if(verbose)
         printf("Read %i vertices\n",*np);
 
@@ -1672,7 +1672,7 @@ int Ply_load(char *path, Mesh *m)
     }
 
     fclose(f);
-    
+
     return 0;
 }
 int Ply_save_mesh(char *path, Mesh *m)
@@ -1683,10 +1683,10 @@ int Ply_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // WRITE HEADER
     fprintf(f,"ply\n");
     fprintf(f,"format ascii 1.0\n");
@@ -1701,14 +1701,14 @@ int Ply_save_mesh(char *path, Mesh *m)
 
     // WRITE VERTICES
     for(i=0;i<*np;i++)
-        fprintf(f,"%f %f %f\n",p[i].x,p[i].y,p[i].z);    
+        fprintf(f,"%f %f %f\n",p[i].x,p[i].y,p[i].z);
 
     // WRITE TRIANGLES
     for(i=0;i<*nt;i++)
         fprintf(f,"3 %i %i %i\n",t[i].a,t[i].b,t[i].c);
 
     fclose(f);
-    
+
     return 0;
 }
 int STL_load(char *path, Mesh *m)
@@ -1719,19 +1719,19 @@ int STL_load(char *path, Mesh *m)
     FILE    *f;
     int        i;
     char    str[512];
-    
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // SKIP HEADER
     fgets(str,511,f);
-    
+
         p = (float3D*)calloc(np,sizeof(float3D));
         if(p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
         for(i=0;i<np;i++)
-            fscanf(f," %f %f %f ",&p[i].x,&p[i].y,&p[i].z);    
+            fscanf(f," %f %f %f ",&p[i].x,&p[i].y,&p[i].z);
         printf("Read %i vertices\n",np);
-    
+
         // READ TRIANGLES
         t = (int3D*)calloc(nt,sizeof(int3D));
         if(t==NULL){printf("ERROR: Not enough memory for mesh triangles\n"); return 1;}
@@ -1741,7 +1741,7 @@ int STL_load(char *path, Mesh *m)
 
     fclose(f);
     */
-    
+
     return 0;
 }
 int STL_save_mesh(char *path, Mesh *m)
@@ -1752,10 +1752,10 @@ int STL_save_mesh(char *path, Mesh *m)
     FILE    *f;
     int     i;
     float3D n;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // WRITE HEADER
     fprintf(f,"solid mySolid\n");
 
@@ -1773,7 +1773,7 @@ int STL_save_mesh(char *path, Mesh *m)
     }
     fprintf(f,"endSolid mySolid\n");
     fclose(f);
-    
+
     return 0;
 }
 int Smesh_load(char *path, Mesh *m)
@@ -1785,10 +1785,10 @@ int Smesh_load(char *path, Mesh *m)
     FILE    *f;
     int     i;
     char    str[512];
-    
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // READ POINTS HEADER
     fgets(str,511,f);
     sscanf(str," %i ",np);
@@ -1796,10 +1796,10 @@ int Smesh_load(char *path, Mesh *m)
     *p = (float3D*)calloc(*np,sizeof(float3D));
     if(*p==NULL){printf("ERROR: Not enough memory for mesh vertices\n");return 1;}
     for(i=0;i<*np;i++)
-        fscanf(f," %*i %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));    
+        fscanf(f," %*i %f %f %f ",&((*p)[i].x),&((*p)[i].y),&((*p)[i].z));
     if(verbose)
         printf("Read %i vertices\n",*np);
-    
+
     // READ TRIANGLES HEADER
     // READ TRIANGLES
     fgets(str,511,f);
@@ -1822,21 +1822,21 @@ int Smesh_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
     // WRITE VERTICES HEADER
     fprintf(f,"%i 3 0 0\n",*np);
     // WRITE VERTICES
     for(i=0;i<*np;i++)
-        fprintf(f,"%i %f %f %f 0\n",i,p[i].x,p[i].y,p[i].z);    
+        fprintf(f,"%i %f %f %f 0\n",i,p[i].x,p[i].y,p[i].z);
     // WRITE TRIANGLES HEADER
     fprintf(f,"%i 0\n",*nt);
     // WRITE TRIANGLES
     for(i=0;i<*nt;i++)
         fprintf(f,"3 %i %i %i\n",t[i].a,t[i].b,t[i].c);
     fprintf(f,"0\n0\n");
-    fclose(f);   
+    fclose(f);
     return 0;
 }
 int Bin_load(char *path, Mesh *m)
@@ -1857,7 +1857,7 @@ int Bin_save_mesh(char *path, Mesh *m)
     int     itmp;
     short   stmp;
     float   ftmp;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
     // WRITE NUMBER OF VERTICES
@@ -1894,7 +1894,7 @@ int Bin_save_mesh(char *path, Mesh *m)
         //swapshort(&stmp);
         fwrite(&stmp,1,sizeof(short),f);
     }
-    fclose(f);   
+    fclose(f);
     return 0;
 }
 int Off_load(char *path, Mesh *m)
@@ -1906,7 +1906,7 @@ int Off_load(char *path, Mesh *m)
     int     i;
     FILE    *f;
     char    str[512];
-    
+
     f=fopen(path,"r");
 
     fgets(str,512,f);    // skip OFF
@@ -1939,7 +1939,7 @@ int Off_save_mesh(char *path, Mesh *m)
         printf("ERROR: Cannot write to file %s\n",path);
         return 1;
     }
-    
+
     fprintf(f,"OFF\n");
     fprintf(f,"%i %i 0\n",*np,*nt);
     for(i=0;i<*np;i++)
@@ -1959,14 +1959,14 @@ int FloatData_save_data(char *path, Mesh *m)
     FILE    *f;
 
     f=fopen(path,"w");
-    
+
     if(f==NULL)
         return 1;
-    
+
     fprintf(f,"%i %i 3\n",*np,m->ddim);
     fwrite(data,(m->np)*m->ddim,sizeof(float),f);
     fclose(f);
-    
+
     return 0;
 }
 int RawFloatData_save_data(char *path, Mesh *m)
@@ -1978,13 +1978,13 @@ int RawFloatData_save_data(char *path, Mesh *m)
     FILE    *f;
 
     f=fopen(path,"w");
-    
+
     if(f==NULL)
         return 1;
-    
+
     fwrite(data,(m->np)*m->ddim,sizeof(float),f);
     fclose(f);
-    
+
     return 0;
 }
 int VTK_load_mesh(char *path, Mesh *m)
@@ -1996,7 +1996,7 @@ int VTK_load_mesh(char *path, Mesh *m)
     FILE    *f;
     int     ip,it,j,k,nval,x;
     char    str[512],str1[256],str2[256];
-        
+
     f=fopen(path,"r");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
 
@@ -2016,7 +2016,7 @@ int VTK_load_mesh(char *path, Mesh *m)
         if(*np>0 && ip<*np)
         {
             j=0;
-            nval=0;            
+            nval=0;
             do
             {
                 while(str[j]==' '||str[j]=='\t')
@@ -2079,10 +2079,10 @@ int VTK_save_mesh(char *path, Mesh *m)
     int3D   *t=m->t;
     FILE    *f;
     int     i;
-    
+
     f=fopen(path,"w");
     if(f==NULL){printf("ERROR: Cannot open file\n");return 1;}
-    
+
     // WRITE HEADER
     fprintf(f,"# vtk DataFile Version 3.0\n");
     fprintf(f,"vtk output\n");
@@ -2098,14 +2098,14 @@ int VTK_save_mesh(char *path, Mesh *m)
             fprintf(f,"\n");
     }
     fprintf(f,"\n");
-    
+
     // WRITE TRIANGLES
     fprintf(f,"POLYGONS %i %i\n",*nt,*nt*4);
     for(i=0;i<*nt;i++)
         fprintf(f,"3 %i %i %i\n",t[i].a,t[i].b,t[i].c);
 
     fclose(f);
-    
+
     return 0;
 }
 int DPV_load_data(char *path, Mesh *m)
@@ -2130,7 +2130,7 @@ int DPV_load_data(char *path, Mesh *m)
         n++;
     }
     fclose(f);
-    
+
     f=fopen(path,"r");
     *np=n;
     *data=(float*)calloc(*np,sizeof(float));
@@ -2140,7 +2140,7 @@ int DPV_load_data(char *path, Mesh *m)
         sscanf(str," %*i %*f %*f %*f %f ",&((*data)[i]));
     }
     fclose(f);
-    
+
     return 0;
 }
 void read_giiElement(char *path, char *el, char **data, int *n, int *d)
@@ -2187,10 +2187,10 @@ void read_giiElement(char *path, char *el, char **data, int *n, int *d)
         sz+=256;
     }
     pclose(f);
-    
+
     // Allocate memory for gzip data
     gzdata=(char*)calloc(sz,sizeof(char));
-    
+
     // Read gzip data
     f=popen(cmd,"r");
     sz=0;
@@ -2200,7 +2200,7 @@ void read_giiElement(char *path, char *el, char **data, int *n, int *d)
         sz+=256;
     }
     pclose(f);
-    
+
     // Inflate gzip data
     expsz=(*n)*nd*4; // because 4: float or int 4 byte values
     *data=calloc(expsz,sizeof(char));
@@ -2233,8 +2233,8 @@ int Gii_load(char *path, Mesh *m)
         printf("Read %i vertices\n",*np);
         printf("Read %i triangles\n",*nt);
     }
-    
-    return 0;    
+
+    return 0;
 }
 int Gii_load_data(char *path, Mesh *m)
 {
@@ -2276,7 +2276,7 @@ void printTriangleAndVertices(Mesh *m, int i)
 int freeMesh(Mesh *m)
 {
     if(verbose) printf("* freeMesh\n");
-    
+
     free(m->p);
     free(m->t);
     if(m->data)
@@ -2394,7 +2394,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
     amesh.t=NULL;
     amesh.data=NULL;
     amesh.NT=NULL;
-    
+
     loadMesh(path,&amesh,iformat);
 
     m1=(Mesh*)calloc(1,sizeof(Mesh));
@@ -2402,19 +2402,19 @@ int addMesh(char *path, Mesh *m0,int iformat)
     m1->nt=m0->nt+amesh.nt;
     m1->p=(float3D*)calloc(m0->np+amesh.np,sizeof(float3D));
     m1->t=(int3D*)calloc(m0->nt+amesh.nt,sizeof(int3D));
-    
+
     // add points
     for(i=0;i<m0->np;i++)
         m1->p[i]=m0->p[i];
     for(i=0;i<amesh.np;i++)
         m1->p[m0->np+i]=amesh.p[i];
-        
+
     // add triangles
     for(i=0;i<m0->nt;i++)
         m1->t[i]=m0->t[i];
     for(i=0;i<amesh.nt;i++)
         m1->t[m0->nt+i]=(int3D){amesh.t[i].a+m0->np,amesh.t[i].b+m0->np,amesh.t[i].c+m0->np};
-    
+
     // free tmp mesh
     freeMesh(&amesh);
 
@@ -2424,7 +2424,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
     m0->nt=m1->nt;
     m0->p=m1->p;
     m0->t=m1->t;
-        
+
     return 0;
 }
 int saveMesh(char *path, Mesh *m, int oformat)
@@ -2432,7 +2432,7 @@ int saveMesh(char *path, Mesh *m, int oformat)
     if(verbose) printf("* omesh: %s\n",path);
 
     int    err=0,format;
-    
+
     if(oformat==0)
         format=getformatindex(path);
     else
@@ -2504,7 +2504,7 @@ int saveMesh(char *path, Mesh *m, int oformat)
         printf("ERROR: cannot write to file: %s\n",path);
         return 1;
     }
-    
+
     return 0;
 }
 
@@ -2516,7 +2516,7 @@ void WriteHexString(FILE *f, char *str)
     int		a;
     short	b;
     char	c[5];
-    
+
     for(i=0;i<len;i+=4)
     {
         for(j=0;j<4;j++)
@@ -2534,9 +2534,9 @@ void writeTIFF(char *path, char *addr, int nx, int ny)
     int		offset;
     int		i,j;
     char	red,green,blue;
-    
+
     fptr=fopen(path,"w");
-    
+
     /* Write the header */
     WriteHexString(fptr,"4d4d002a");    /* Little endian & TIFF identifier */
     offset = nx * ny * 3 + 8;
@@ -2548,17 +2548,17 @@ void writeTIFF(char *path, char *addr, int nx, int ny)
     /* Write the binary data */
     for (j=0;j<ny;j++) {
       for (i=0;i<nx;i++) {
-    
+
          red=addr[4*(j*nx+i)+0];
          green=addr[4*(j*nx+i)+1];
          blue=addr[4*(j*nx+i)+2];
-         
+
          fputc(red,fptr);
          fputc(green,fptr);
          fputc(blue,fptr);
       }
     }
-   
+
     WriteHexString(fptr,"000e");  						/* Write the footer */ /* The number of directory entries (14) */
     WriteHexString(fptr,"0100000300000001");			/* Width tag, short int */
     fputc((nx & 0xff00) / 256,fptr);    /* Image width */
@@ -2647,11 +2647,11 @@ void absgi(Mesh *m)
 
     S=area(m);
     V=volume(m);
-    
+
     // log(absGI)    = log(Sx)-2log(Vx)/3-log(36π)/3
     // absGI        = Sx/(Vx^(2/3)(36π)^(1/3))
     logAbsGI=log(S)-2*log(V)/3.0-log(36*M_PI)/3.0;
-    
+
     printf("absgi: %f\n",exp(logAbsGI));
 }
 void align(Mesh *m, char *path)
@@ -2671,7 +2671,7 @@ void align(Mesh *m, char *path)
     float   x0,y0,z0,x,y,z,M[9];
     float   err,minerr;
     int     iminerr;
-    
+
     loadMesh(path, &target,0);
     npt=target.np;
     pt=target.p;
@@ -2695,7 +2695,7 @@ void align(Mesh *m, char *path)
         p[i]=sub3D(p[i],c0);
         pt[i]=sub3D(pt[i],c1);
     }
-    
+
     // Rotate m to minimise (m-p)^2
     //-------------------------------
     // Guess an initial rotation
@@ -2818,11 +2818,11 @@ float area(Mesh *m)
     int3D   *t=m->t;
     int     i;
     float   area=0;
-    
+
     for(i=0;i<*nt;i++)
         area+=triangle_area(p[t[i].a],p[t[i].b],p[t[i].c]);
     printf("area: %f\n",area);
-    
+
     return area;
 }
 int areaMap(float *C, Mesh *m)
@@ -2845,22 +2845,22 @@ int areaMap(float *C, Mesh *m)
         C[t[i].a]+=a/3;
         C[t[i].b]+=a/3;
         C[t[i].c]+=a/3;
-    }    
+    }
     return 0;
 }
 int average(int N, char *paths[], Mesh *m)
 {
     if(verbose) printf("* average\n");
-    
+
     int     i,j;
     int     np;
     float3D *p;
     Mesh    m1;
-    
+
     loadMesh(paths[0],m,0);
     np=m->np;
     p=m->p;
-    
+
     for(j=1;j<N;j++)
     {
         loadMesh(paths[j],&m1,0);
@@ -2884,7 +2884,7 @@ int applyMatrix(float *M, Mesh *m)
     {
         multMatVec(M,m->p[i],&(m->p[i]));
     }
-    
+
     return 0;
 }
 int barycentricProjection(char *path_rm, Mesh *m)
@@ -2905,9 +2905,9 @@ int barycentricProjection(char *path_rm, Mesh *m)
     int     i,j,result;
     float3D n;
     float   flipTest;
-    
+
     loadMesh(path_rm,&rm,0);
-    
+
     // Check whether the meshes are properly oriented
     n=normal3D(0,m);
     flipTest=dot3D(m->p[m->t[0].a],n);
@@ -2923,7 +2923,7 @@ int barycentricProjection(char *path_rm, Mesh *m)
         printf("ERROR: rm is mis-oriented\n");
         return 1;
     }
-    
+
     // Actual mesh (smooth)
     p=m->p;
     nt=m->nt;
@@ -2932,7 +2932,7 @@ int barycentricProjection(char *path_rm, Mesh *m)
     // Reference mesh (smooth)
     np_rm=rm.np;
     p_rm=rm.p;
-    
+
     for(i=0;i<np_rm;i++)
     {
         for(j=0;j<nt;j++)
@@ -2979,7 +2979,7 @@ int barycentricProjection(char *path_rm, Mesh *m)
             return 1;
         }
     }
-    
+
     return 0;
 }
 void barycentre(Mesh *m)
@@ -2988,7 +2988,7 @@ void barycentre(Mesh *m)
     float3D *p=m->p;
     int     i;
     float3D centre={0,0,0};
-    
+
     for(i=0;i<*np;i++)
         centre=add3D(centre,p[i]);
     centre=sca3D(centre,1/(float)*np);
@@ -3005,7 +3005,7 @@ int boundingBox(Mesh *m)
     float3D *p=m->p;
     float3D min,max;
     int     i;
-    
+
     min=max=p[0];
     for(i=0;i<np;i++)
     {
@@ -3036,7 +3036,7 @@ void centre(Mesh *m)
     float3D *p=m->p;
     int     i;
     float3D mi,ma,centre;
-    
+
     mi=ma=p[0];
     for(i=0;i<np;i++)
     {
@@ -3057,7 +3057,7 @@ void checkOrientation(Mesh *m)
 {
     float3D n=normal3D(0,m);
     float   flipTest=dot3D(m->p[m->t[0].a],n);
-    
+
     printf("orientation: %c\n",(flipTest>0)?'+':'-');
 
 }
@@ -3066,16 +3066,16 @@ int clip(Mesh *m, float min, float max)
     float   *data=m->data;
     int     i;
     int     np=m->np;
-    
+
     if(data==NULL)
     {
         printf("ERROR: In clip, no data available\n");
         return 0;
     }
-    
-    if(verbose) 
+
+    if(verbose)
         printf("clipping to [%f,%f]\n",min,max);
-        
+
     for(i=0;i<np;i++)
     {
         if(data[i]>max)
@@ -3083,7 +3083,7 @@ int clip(Mesh *m, float min, float max)
         if(data[i]<min)
             data[i]=min;
     }
-    
+
     return 1;
 }
 double  sum;
@@ -3094,12 +3094,12 @@ void cluster(int ip, float *thrsrc, float thr, Mesh *m)
     NTriRec *NT=m->NT;
     int     i,j,it;
     int     *tt;
-    
+
     tmark[ip]=1;
-    ncverts++;    
+    ncverts++;
     for(i=0;i<=NT[ip].n;i++)
     {
-        it=NT[ip].t[i];        
+        it=NT[ip].t[i];
         tt=(int*)&(t[it]);
         for(j=0;j<3;j++)
             if(thrsrc[tt[j]]>=thr && tmark[tt[j]]==0)
@@ -3116,7 +3116,7 @@ float cot(float3D a, float3D b)
     float   ab=dot3D(a,b);
     float   na2=norm3Dsqr(a);
     float   nb2=norm3Dsqr(b);
-    
+
     return ab/sqrt(na2*nb2-ab*ab);
 }
 void countClusters(float thr, Mesh *m)
@@ -3126,9 +3126,9 @@ void countClusters(float thr, Mesh *m)
     float   *data=m->data;
     int     n;
     int     i;
-    
+
     neighbours(m);
-    
+
     n=1;
     tmark=(int*)calloc(*np,sizeof(int));
     if(verbose)
@@ -3147,7 +3147,7 @@ void countClusters(float thr, Mesh *m)
         printf("\n");
     else
         printf("countClusters: %i\n",n-1);
-        
+
     free(tmark);
 }
 int curvature(float *C, Mesh *m)
@@ -3178,7 +3178,7 @@ int curvature(float *C, Mesh *m)
     }
     for(i=0;i<*np;i++)
         tmp[i]=sub3D(sca3D(tmp[i],1/(float)n[i]),p[i]);
-        
+
     tmp1=(float3D*)calloc(*np,sizeof(float3D));
     // compute normal direction as the average of neighbour triangle normals
     for(i=0;i<*nt;i++)
@@ -3192,12 +3192,12 @@ int curvature(float *C, Mesh *m)
     for(i=0;i<*np;i++)
         tmp1[i]=sca3D(tmp1[i],1/(float)n[i]);
     free(n);
-    
+
     for(i=0;i<*np;i++)
         C[i]=-dot3D(tmp1[i],tmp[i]);
     free(tmp);
     free(tmp1);
-    
+
     absmax=-1;
     for(i=0;i<*np;i++)
         absmax=(fabs(C[i])>absmax)?fabs(C[i]):absmax;
@@ -3208,7 +3208,7 @@ int curvature(float *C, Mesh *m)
         if(C[i]>1)    C[i]=1;
         if(C[i]<-1)   C[i]=-1;
     }
-    
+
     return 0;
 }
 int curvature_exact(float *C, Mesh *m)
@@ -3246,7 +3246,7 @@ int curvature_exact(float *C, Mesh *m)
     }
     for(i=0;i<*np;i++)
         tmp[i]=sca3D(tmp[i],1/(float)n[i]);
-        
+
     tmp1=(float3D*)calloc(*np,sizeof(float3D));
     // compute normal direction as the average of neighbour triangle normals
     for(i=0;i<*nt;i++)
@@ -3260,7 +3260,7 @@ int curvature_exact(float *C, Mesh *m)
     for(i=0;i<*np;i++)
         tmp1[i]=sca3D(tmp1[i],1/(float)n[i]);
     free(n);
-    
+
     for(i=0;i<*np;i++)
         C[i]=dot3D(tmp1[i],tmp[i]);
     free(tmp);
@@ -3276,7 +3276,7 @@ int curvature_exact(float *C, Mesh *m)
     }
     printf("min,max: %f,%f\n",min,max);
     */
-    
+
     return 0;
 }
 void depth(float *C, Mesh *m)
@@ -3288,18 +3288,18 @@ void depth(float *C, Mesh *m)
     float3D		ce={0,0,0},ide,siz;
     int         np=m->np;
     float3D     *p=m->p;
-    
+
     // compute sulcal depth
     for(i=0;i<np;i++)
     {
         ce=(float3D){ce.x+p[i].x,ce.y+p[i].y,ce.z+p[i].z};
-        
+
         if(i==0) ide=siz=p[i];
-        
+
         if(ide.x<p[i].x) ide.x=p[i].x;
         if(ide.y<p[i].y) ide.y=p[i].y;
         if(ide.z<p[i].z) ide.z=p[i].z;
-        
+
         if(siz.x>p[i].x) siz.x=p[i].x;
         if(siz.y>p[i].y) siz.y=p[i].y;
         if(siz.z>p[i].z) siz.z=p[i].z;
@@ -3339,7 +3339,7 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
     int     argc = 1;
     char    *argv[1] = {(char*)"Something"};
     float   min,max,val;
-    
+
     // configure data
     min=minData(m);
     max=maxData(m);
@@ -3364,7 +3364,7 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
         }
         color[i]=(float3D){R,G,B};
     }
-    
+
     // draw
     if(g_gluInitFlag==0)
     {
@@ -3423,11 +3423,11 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
             glEnd();
             glDisable( GL_CULL_FACE );
         }
-    
+
     // Write image in TIFF format
     addr=(char*)calloc(width*height,sizeof(char)*4);
     glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,addr);
-    
+
     if(strcmp(cmap,"level2")==0)
     for(i=0;i<width*height*4;i++)
         addr[i]=(char)((addr[i]%128>=120 && addr[i]%128<128)?0:255);
@@ -3437,10 +3437,10 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
         addr[i]=(char)((addr[i]%64>=60 && addr[i]%64<64)?0:255);
 
     writeTIFF(tiff_path,addr,width,height);
-    
+
     free(color);
     free(addr);
-    
+
     return 0;
 }
 int edgeLength(Mesh *m)
@@ -3507,15 +3507,15 @@ int fixflip(Mesh *m)
     int     i,j,pos,nflipped=0;
     float3D *nn=(float3D*)calloc(nt,sizeof(float3D));
     float3D tmp;
-    
+
     // compute all triangle normals
     for(i=0;i<nt;i++)
         nn[i]=normal3D(i,m);
-    
+
     // find neighbouring triangles for every vertex
     neighbours(m);
     NT=m->NT;
-    
+
     // find vertices with 1 inverted triangle
     for(i=0;i<np;i++)
     {
@@ -3559,15 +3559,15 @@ int fixflipSphere(Mesh *m)
     int     i,j,nflipped=0;
     float3D *nn=(float3D*)calloc(nt,sizeof(float3D));
     float3D tmp;
-    
+
     // compute all triangle normals
     for(i=0;i<nt;i++)
         nn[i]=normal3D(i,m);
-    
+
     // find neighbouring triangles for every vertex
     neighbours(m);
     NT=m->NT;
-    
+
     // find vertices with 1 inverted triangle
     for(i=0;i<np;i++)
     {
@@ -3609,7 +3609,7 @@ int fixNonmanifold_verts(Mesh *mesh)
     float3D *p1;
     int *t1,t1_length;
     int *i1,i1_length;
-    
+
     neighbours(mesh);
     ne=mesh->NT;
 
@@ -3627,7 +3627,7 @@ int fixNonmanifold_verts(Mesh *mesh)
             else
                 e[e_length++]=(int3D){t[ne[i].t[j]].a,t[ne[i].t[j]].b,ne[i].t[j]};
         }
-        
+
         //printf("p[%i]: ",i); for(j=0;j<e_length;j++) printf("(%i,%i,[%i]) ",e[j].a,e[j].b,e[j].c); printf("\n");
         j=0;
         i1=(int*)calloc(ne[i].n,sizeof(int));
@@ -3661,9 +3661,9 @@ int fixNonmanifold_verts(Mesh *mesh)
                     //printf("j%i k%i. t[%i], t[%i]\n",j,k,e[j].c,e[k].c);
                     t1[t1_length++]=e[k].c; //printf("t[%i] ",e[k].c);
                     e[k]=e[--e_length];
-    
+
                     //printf("p[%i]: ",i); for(m=0;m<e_length;m++) printf("(%i,%i,[%i]) ",e[m].a,e[m].b,e[m].c); printf("\n");
-        
+
                     if(e[j].a==e[j].b)
                     {
                         //printf("\n");
@@ -3695,13 +3695,13 @@ int fixNonmanifold_verts(Mesh *mesh)
         if(e_length>1)
         {
             printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
-            
+
             p1=(float3D*)calloc(np+e_length-1,sizeof(float3D));
             for(l=0;l<np;l++)
                 p1[l]=p[l];     // copy the original vertices
             for(l=0;l<e_length-1;l++)
                 p1[np+l]=p[i]; // make e_length-1 copies of vertex i at the end of the vertex vector
-            
+
             k=1;
             for(j=0;j<t1_length;j++)
             {
@@ -3731,7 +3731,7 @@ int fixNonmanifold_verts(Mesh *mesh)
         free(t1);
         free(i1);
     }
-    
+
     return 0;
 }
 int fixnonmanifold_tris(Mesh *mesh)
@@ -3742,22 +3742,22 @@ int fixnonmanifold_tris(Mesh *mesh)
 	int     np=mesh->np;
 	NTriRec *ne;
 	float3D *p1,*p=mesh->p;
-	
+
 	found=nonmanifold_tris(mesh);
-	
+
 	if(found==0)
 	{
 	    printf("no nonmanifold triangles found\n");
 	    return 0;
 	}
-	
+
 	p1=(float3D*)calloc(np+found*3,sizeof(float3D));
 	for(i=0;i<np;i++)
 	    p1[i]=p[i];
 
     neighbours(mesh);
     ne=mesh->NT;
-    
+
     found=0;
     for(i=0;i<nt;i++)
     {
@@ -3790,7 +3790,7 @@ int fixSmall(Mesh *m)
     float   angle;
     float3D tmp;
     int     didFix;
-    
+
     // find neighbouring triangles for every vertex
     neighbours(m);
     NT=m->NT;
@@ -3833,7 +3833,7 @@ int fixSmall(Mesh *m)
     }
     if(l==5)
         printf("WARNING: fixSmall: There may still be small triangles\n");
-    
+
     return 0;
 }
 int flip(Mesh *m)
@@ -3842,7 +3842,7 @@ int flip(Mesh *m)
 
     int     nt=m->nt;
     int3D   *t=m->t;
-    int     i;    
+    int     i;
 
     for(i=0;i<nt;i++)
     {
@@ -3860,7 +3860,7 @@ int foldLength(Mesh *m)
     int     i,j;
     float   length=0,a,x;
     float3D p0[3];
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data to calculate foldLength (use -curv before)\n");
@@ -3910,7 +3910,7 @@ int icurvature(int iter, Mesh *m)
         curvature(tmp,m);
         for(i=0;i<*np;i++)
             data[i]+=tmp[i]*(1+k/(float)iter);
-        
+
         smooth(m);
         smooth(m);
     }
@@ -3919,7 +3919,7 @@ int icurvature(int iter, Mesh *m)
         absmax = (fabs(data[i])>absmax)?fabs(data[i]):absmax;
     for(i=0;i<*np;i++)
         data[i]/=absmax;
-    
+
     return 0;
 }
 /**
@@ -3968,7 +3968,7 @@ int isolatedVerts(Mesh *m)
     int3D   *t=m->t;
     int     *n;
     int     i,sum;
-    
+
     n=(int*)calloc(*np,sizeof(int));
     for(i=0;i<*nt;i++)
     {
@@ -3999,10 +3999,10 @@ int removeIsolatedVerts(Mesh *m)
     int3D   *t=m->t;
     int     *n,*ip;
     int     i,j;
-    
+
     ip=(int*)calloc(*np,sizeof(int));
     n=(int*)calloc(*np,sizeof(int));
-    
+
     // count neighbours
     for(i=0;i<*nt;i++)
     {
@@ -4010,7 +4010,7 @@ int removeIsolatedVerts(Mesh *m)
         n[t[i].b]+=2;
         n[t[i].c]+=2;
     }
-    
+
     // make a lookup table for the new vertex indices
     // and re-index the vertices
     j=0;
@@ -4027,15 +4027,15 @@ int removeIsolatedVerts(Mesh *m)
     }
     np0=*np;
     *np=j;  // j is the new number of vertices
-    
+
     // re-index triangles
     for(i=0;i<*nt;i++)
         t[i]=(int3D){ip[t[i].a],ip[t[i].b],ip[t[i].c]};
     free(n);
-    
+
     if(verbose)
         printf("%i vertices were removed\n",np0-j);
-    
+
     return 0;
 }
 int removeVerts(Mesh *m)
@@ -4050,13 +4050,13 @@ int removeVerts(Mesh *m)
     int     *n,*ip;
     int     i,j,sum;
     float   *data=m->data;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data to removeVerts (use -curv, for example)\n");
         return 1;
     }
-    
+
     // remove triangles that contain vertices with negative data values,
     // vertices with negative data will be then isolated
     sum=0;
@@ -4073,11 +4073,11 @@ int removeVerts(Mesh *m)
     }
     if(verbose)
         printf("%i triangles with negative data vertices removed\n",sum);
-    
+
     // remove isolated vertices
     ip=(int*)calloc(*np,sizeof(int));
     n=(int*)calloc(*np,sizeof(int));
-    
+
     // count neighbours
     for(i=0;i<*nt;i++)
     {
@@ -4085,7 +4085,7 @@ int removeVerts(Mesh *m)
         n[t[i].b]+=2;
         n[t[i].c]+=2;
     }
-    
+
     // make a lookup table for the new vertex indices
     // and re-index the vertices
     j=0;
@@ -4103,15 +4103,15 @@ int removeVerts(Mesh *m)
     }
     np0=*np;
     *np=j;  // j is the new number of vertices
-    
+
     // re-index triangles
     for(i=0;i<*nt;i++)
         t[i]=(int3D){ip[t[i].a],ip[t[i].b],ip[t[i].c]};
     free(n);
-    
+
     if(verbose)
         printf("%i vertices were removed\n",np0-j);
-    
+
     return 0;
 }
 int laplace(float lambda, Mesh *m)
@@ -4125,7 +4125,7 @@ int laplace(float lambda, Mesh *m)
     float3D *tmp,x,dx;
     int     *n;
     int     i;
-    
+
     tmp=(float3D*)calloc(*np,sizeof(float3D));
     n=(int*)calloc(*np,sizeof(int));
     for(i=0;i<*nt;i++)
@@ -4216,13 +4216,13 @@ int level(float v, Mesh *m)
     int3D   *newt;
     float   *newdata;
     float   datamax,datamin;
-    
+
     if((*data)==NULL)
     {
         printf("ERROR: there is no data to calculate level (use -curv, for example)\n");
         return 1;
     }
-    
+
     // Zeroth pass
     datamax=datamin=(*data)[0]-v;
     for(i=0;i<*np;i++)
@@ -4268,7 +4268,7 @@ int level(float v, Mesh *m)
         }
     free(n);
     max=max/2;
-    
+
     if(verbose)
     {
         printf("MSG: level will add %i vertices and %i triangles.\n",nnp,nnt);
@@ -4368,7 +4368,7 @@ int level(float v, Mesh *m)
             }
         }
     }
-    
+
     // replace old mesh with new mesh
     free(*p);
     free(*t);
@@ -4381,7 +4381,7 @@ int level(float v, Mesh *m)
     *t=newt;
     *data=newdata;
     free(newplut);
-    
+
     return 0;
 }
 int lissencephalic(int iter, Mesh *m)
@@ -4397,7 +4397,7 @@ int lissencephalic(int iter, Mesh *m)
     float3D *tmp,*p;
     float   *data=m->data;
     int     i,j,k;
-    
+
     level(0,m);
     np=m->np;
     p=m->p;
@@ -4408,7 +4408,7 @@ int lissencephalic(int iter, Mesh *m)
     for(j=0;j<iter;j++)
     {
         smooth(m);
-        
+
         for(k=0;k<10;k++)
         {
             for(i=0;i<np;i++)
@@ -4418,7 +4418,7 @@ int lissencephalic(int iter, Mesh *m)
         }
     }
     free(tmp);
-    
+
     return 0;
 }
 float maxData(Mesh *m)
@@ -4427,7 +4427,7 @@ float maxData(Mesh *m)
     float   *data=m->data;
     int     i;
     float   max;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -4446,7 +4446,7 @@ float meanData(Mesh *m)
     float   *data=m->data;
     int     i;
     float   mean;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -4466,7 +4466,7 @@ float minData(Mesh *m)
     float   *data=m->data;
     int     i;
     float   min;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -4485,12 +4485,12 @@ float mirror(Mesh *m, char *coord)
     float3D *p=m->p;
     int i;
     float3D c={0,0,0};
-    
+
     // compute barycentre
     for(i=0;i<np;i++)
         c=add3D(c,p[i]);
     c=sca3D(c,1/(float)np);
-    
+
     // mirror
     switch((char)coord[0])
     {
@@ -4507,7 +4507,7 @@ float mirror(Mesh *m, char *coord)
                 p[i]=(float3D){p[i].x,p[i].y,2*c.z-p[i].z};
             break;
     }
-    
+
     return 0;
 }
 float stdData(Mesh *m)
@@ -4516,7 +4516,7 @@ float stdData(Mesh *m)
     float   *data=m->data;
     int     i;
     float   s,ss,std;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -4574,7 +4574,7 @@ int nonmanifold_verts(Mesh *mesh)
     int *t1,t1_length;
     int *i1,i1_length;
     int sum=0;
-   
+
     neighbours(mesh);
     ne=mesh->NT;
 
@@ -4595,9 +4595,9 @@ int nonmanifold_verts(Mesh *mesh)
             else
                 e[e_length++]=(int3D){t[ne[i].t[j]].a,t[ne[i].t[j]].b,ne[i].t[j]};
         }
-/*        
+/*
         printf("p[%i]: ",i); for(j=0;j<e_length;j++) printf("(%i,%i) ",e[j].a,e[j].b); printf("\n");
-*/       
+*/
         // scan the list of edges, if 2 edges share a vertex,
         // delete the vertex and connect the points directly.
         // at the end, there should be only one edge remaining
@@ -4673,7 +4673,7 @@ void nonmanifold_eds(Mesh *mesh)
     int     i,j,k,equal;
     int     n;  // # manifold edges
     int3D	*e;
-    int		*t;	
+    int		*t;
     int3D   *tris=mesh->t;
     int     nt=mesh->nt;
 
@@ -4698,12 +4698,12 @@ void nonmanifold_eds(Mesh *mesh)
             }
         }
     }
-    
+
     // sort edges
     qsort(e,nt*3,sizeof(int3D),compareEdges);
 
     //for(i=0;i<nt*3;i++) printf("e[%i]=(%i,%i), t[%i]\n",i,e[i].a,e[i].b,e[i].c);
-    
+
     printf("non manifold edges\n");
     // count nonmanifold edges
     j=0;
@@ -4744,7 +4744,7 @@ int nonmanifold_tris(Mesh *mesh)
 
     neighbours(mesh);
     ne=mesh->NT;
-    
+
     found=0;
     for(i=0;i<nt;i++)
     {
@@ -4770,7 +4770,7 @@ void normalise(Mesh *m)
     int     np=m->np;
     float3D *p=m->p,c={0,0,0},x;
     int     i;
-    
+
     for(i=0;i<np;i++)
         c=add3D(c,p[i]);
     c=sca3D(c,1/(float)np);
@@ -4787,7 +4787,7 @@ void printBarycentre(Mesh *m)
     float3D *p=m->p;
     int     i;
     float3D centre={0,0,0};
-    
+
     for(i=0;i<*np;i++)
         centre=add3D(centre,p[i]);
     centre=sca3D(centre,1/(float)*np);
@@ -4799,7 +4799,7 @@ void printCentre(Mesh *m)
     float3D *p=m->p;
     int     i;
     float3D mi,ma,centre;
-    
+
     mi=ma=p[0];
     for(i=0;i<np;i++)
     {
@@ -4829,38 +4829,38 @@ int relax(char *path, Mesh *m0,int iformat)
     float   alpha,beta;
     float   dot0,dot1;
     float3D *s0,*s1,*nn0,*nn1,nn;
-    
+
     niter=400000;
 
     alpha=0.5;
     beta=0.5;
-    
+
     m1=(Mesh*)calloc(1,sizeof(Mesh));
     loadMesh(path,m1,iformat);
-    
+
     p0=m0->p;
     p1=m1->p;
     t=m0->t;
-    
+
     printf("area source: %g\n",area(m0));
     printf("area target: %g\n",area(m1));
-    
+
     f=(float3D*)calloc(m0->np,sizeof(float3D));
     g=(float3D*)calloc(m0->np,sizeof(float3D));
     n=(int*)calloc(m0->np,sizeof(int));
-    
+
     s0=(float3D*)calloc(m0->np,sizeof(float3D));
     s1=(float3D*)calloc(m0->np,sizeof(float3D));
     nn0=(float3D*)calloc(m0->np,sizeof(float3D));
     nn1=(float3D*)calloc(m0->np,sizeof(float3D));
-    
+
     for(i=0;i<m0->nt;i++)
     {
         n[t[i].a]++;
         n[t[i].b]++;
         n[t[i].c]++;
     }
-    
+
     // compute target smoothing direction
     for(i=0;i<m0->nt;i++)
     {
@@ -4938,9 +4938,9 @@ int relax(char *path, Mesh *m0,int iformat)
             a1=add3D(sca3D(sub3D(a,o),pow(J,0.5)),o);
             b1=add3D(sca3D(sub3D(b,o),pow(J,0.5)),o);
             c1=add3D(sca3D(sub3D(c,o),pow(J,0.5)),o);
-            
+
             // printf("%g %g %g\n",area0,area1,triangle_area(a1,b1,c1));
-        
+
             f[t[i].a]=add3D(f[t[i].a],sub3D(a1,a));
             f[t[i].b]=add3D(f[t[i].b],sub3D(b1,b));
             f[t[i].c]=add3D(f[t[i].c],sub3D(c1,c));
@@ -4950,27 +4950,27 @@ int relax(char *path, Mesh *m0,int iformat)
             f[i]=sca3D(f[i],1/(float)n[i]);
             //f[i]=sca3D(nn0[i],dot3D(f[i],nn0[i]));
         }
-    
+
         // 3. Apply forces
         for(i=0;i<m0->np;i++)
         {
             p0[i]=add3D(p0[i],sca3D(f[i],alpha));
             p0[i]=add3D(p0[i],sca3D(g[i],beta));
         }
-        
+
         // 4. Reinitialise
         for(i=0;i<m0->np;i++)
         {
             s0[i]=zero;
             nn0[i]=zero;
             f[i]=zero;
-            g[i]=zero;          
+            g[i]=zero;
             //printf("d0:%g d1:%g\n",dot0,dot1);
         }
     }
- 
+
      printf("area source: %g\n",area(m0));
-   
+
     // free m1
     freeMesh(m1);
     free(f);
@@ -5153,23 +5153,23 @@ int rotate(Mesh *m, float x, float y, float z)
     int i;
     float   M[9];
     float3D *p=m->p,pp;
-    
+
     x*=M_PI/180.0;
     y*=M_PI/180.0;
     z*=M_PI/180.0;
-    
+
     M[0]=cos(z)*cos(y);
     M[1]=-sin(z)*cos(x)+cos(z)*sin(y)*sin(x);
     M[2]=sin(z)*sin(x)+cos(z)*sin(y)*cos(x);
-    
+
     M[3]=sin(z)*cos(y);
     M[4]=cos(z)*cos(x)+sin(z)*sin(y)*sin(x);
     M[5]=-cos(z)*sin(x)+sin(z)*sin(y)*cos(x);
-    
+
     M[6]=-sin(y);
     M[7]=cos(y)*sin(x);
     M[8]=cos(y)*cos(x);
-    
+
     for(i=0;i<m->np;i++)
     {
         pp.x=M[0]*p[i].x+M[1]*p[i].y+M[2]*p[i].z;
@@ -5184,10 +5184,10 @@ int scale(float t, Mesh *m)
     int     *np=&(m->np);
     float3D *p=m->p;
     int     i;
-    
+
     for(i=0;i<*np;i++)
         p[i]=sca3D(p[i],t);
-    
+
     return 0;
 }
 int scale3(float x, float y, float z, Mesh *m)
@@ -5195,7 +5195,7 @@ int scale3(float x, float y, float z, Mesh *m)
     int     *np=&(m->np);
     float3D *p=m->p;
     int     i;
-    
+
     for(i=0;i<*np;i++)
     {
         p[i].x=p[i].x*x;
@@ -5352,7 +5352,7 @@ int selectFlipTriangle(Mesh *m)
     float3D *nn=(float3D*)calloc(nt,sizeof(float3D));
     float3D tmp;
     char    *selection = m->selection;
-    
+
     // compute all triangle normals
     for(i=0;i<nt;i++)
         nn[i]=normal3D(i,m);
@@ -5425,7 +5425,7 @@ int size(Mesh *m)
     float3D *p=m->p;
     float3D min,max;
     int     i;
-    
+
     min=max=p[0];
     for(i=0;i<np;i++)
     {
@@ -5449,7 +5449,7 @@ int smooth(Mesh *m)
     float3D *tmp;
     int     *n;
     int     i;
-    
+
     tmp=(float3D*)calloc(*np,sizeof(float3D));
     n=(int*)calloc(*np,sizeof(int));
     for(i=0;i<*nt;i++)
@@ -5471,7 +5471,7 @@ int smooth(Mesh *m)
 int smoothData(Mesh *m,float l,int niter)
 {
     if(verbose) printf("* smoothData lambda:%f N:%i\n",l,niter);
-    
+
     int     np=m->np;
     int     nt=m->nt;
     int3D   *t=m->t;
@@ -5487,7 +5487,7 @@ int smoothData(Mesh *m,float l,int niter)
         ntmp[t[i].b]+=2;
         ntmp[t[i].c]+=2;
     }
-    
+
     tmp=(float*)calloc(np,sizeof(float));
     for(k=0;k<niter;k++)
     {
@@ -5562,19 +5562,19 @@ int stereographic(Mesh *m)
     int     i,nt;
     float3D *p=m->p;
     int3D   *t=m->t;
-    int3D   *t1;    
+    int3D   *t1;
     float	a,b;
 
-    
+
     for(i=0;i<m->np;i++)
-    {    
+    {
         a=atan2(p[i].y,p[i].x);
         b=acos(p[i].z/norm3D(p[i]));
         p[i].x=b*cos(a);
         p[i].y=b*sin(a);
         p[i].z=0;
     }
-    
+
     // delete triangles close to the border
     t1=(int3D*)calloc(m->nt,sizeof(int3D));
     nt=0;
@@ -5589,7 +5589,7 @@ int stereographic(Mesh *m)
     m->t=t1;
     m->nt=nt;
     printf("new nt: %i\n",nt);
-    
+
     return 0;
 }
 int subdivide(Mesh *m)
@@ -5610,7 +5610,7 @@ int subdivide(Mesh *m)
     float3D *sump;
     int     *n;
     float   beta;
-    
+
     sump=(float3D*)calloc(np,sizeof(float3D));
     n=(int*)calloc(np,sizeof(int));
 
@@ -5623,7 +5623,7 @@ int subdivide(Mesh *m)
         x=add3D(p[t[i].a],add3D(p[t[i].b],p[t[i].c]));
         x=sca3D(x,1/3.0);
         newp[np+i]=x;
-        
+
         sump[t[i].a]=add3D(sump[t[i].a],x);
         sump[t[i].b]=add3D(sump[t[i].b],x);
         sump[t[i].c]=add3D(sump[t[i].c],x);
@@ -5631,7 +5631,7 @@ int subdivide(Mesh *m)
         n[t[i].b]++;
         n[t[i].c]++;
     }
-    
+
     // update triangles
     newt=(int3D*)calloc(newnt,sizeof(int3D));
     for(i=0;i<nt;i++)
@@ -5640,7 +5640,7 @@ int subdivide(Mesh *m)
         newt[nt+i]=(int3D){t[i].b,t[i].c,np+i};
         newt[2*nt+i]=(int3D){t[i].c,t[i].a,np+i};
     }
-    
+
     // flip old edges
     T=(NTriRec*)calloc(np,sizeof(NTriRec));
     I=(NTriRec*)calloc(np,sizeof(NTriRec));
@@ -5697,24 +5697,24 @@ int subdivide(Mesh *m)
     }
     free(T);
     free(I);
-    
+
     // update position of old vertices
     for(i=0;i<np;i++)
     {
         // beta=(4-2cos(2M_PI/n))/(9n)
         beta=(4-2*cos(2*M_PI/n[i]))/(9*n[i]);
-        
+
         // p(k+1)=(1-n*beta)p(k) + beta*sum(neighbours)
         newp[i]=add3D(sca3D(p[i],1-n[i]*beta),sca3D(sump[i],beta));
     }
     free(sump);
     free(n);
-    
+
     m->np=newnp;
     m->nt=newnt;
     m->p=newp;
     m->t=newt;
-    
+
     return 1;
 }
 int tangentLaplace(float lambda, Mesh *m)
@@ -5729,9 +5729,9 @@ int tangentLaplace(float lambda, Mesh *m)
     float3D *tmp,dx,*tmp1,nn;
     int     *n;
     int     i;
-    
+
     normalise(m);
-    
+
     // compute barycentre
     tmp=(float3D*)calloc(*np,sizeof(float3D));
     n=(int*)calloc(*np,sizeof(int));
@@ -5753,7 +5753,7 @@ int tangentLaplace(float lambda, Mesh *m)
         else
             tmp[i]=sca3D(tmp[i],1/(float)n[i]);
     }
- 
+
     // compute normal direction as the average of neighbour triangle normals
      tmp1=(float3D*)calloc(*np,sizeof(float3D));
     for(i=0;i<*nt;i++)
@@ -5777,15 +5777,15 @@ int tangentLaplace(float lambda, Mesh *m)
     free(tmp);
     free(tmp1);
     free(n);
-    return 0;   
+    return 0;
 }
 int taubin(float lambda, float mu, int N, Mesh *m)
 {
     int j;
-    
+
     if(verbose)
         printf("* taubinSmooth %f %f %i\n",lambda,mu,N);
-        
+
     for(j=0;j<2*N;j++)
         if(j%2==0)
             laplace(lambda,m);
@@ -5824,7 +5824,7 @@ float volume(Mesh *m)
     int3D   *t=m->t;
     float   vol=0;
     int     i;
-    
+
     for(i=0;i<*nt;i++)
         vol += determinant(p[t[i].a],p[t[i].b],p[t[i].c]); //divide by 6 later for efficiency
     vol/=6.0;// since the determinant give 6 times tetra volume
@@ -5842,7 +5842,7 @@ int normal(Mesh *m)
     float3D *tmp;
     int     *n;
     int     i;
-    
+
     printf("WARNING: \"normal\" has not been tested\n");
 
     tmp=(float3D*)calloc(*np,sizeof(float3D));
@@ -5862,7 +5862,7 @@ int normal(Mesh *m)
     for(i=0;i<*np;i++)
         ((float3D*)data)[i]=sca3D(tmp[i],1/(float)n[i]);
     free(tmp);
-    
+
     return 0;
 }
 int subVal(float val,Mesh *m)
@@ -5870,7 +5870,7 @@ int subVal(float val,Mesh *m)
     int     np=m->np;
     float   *data=m->data;
     int     i;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -5878,7 +5878,7 @@ int subVal(float val,Mesh *m)
     }
 
     for(i=0;i<np;i++)
-        data[i]-=val;    
+        data[i]-=val;
     return 0;
 }
 int addVal(float val,Mesh *m)
@@ -5886,7 +5886,7 @@ int addVal(float val,Mesh *m)
     int     np=m->np;
     float   *data=m->data;
     int     i;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -5902,7 +5902,7 @@ int multVal(float val,Mesh *m)
     int     np=m->np;
     float   *data=m->data;
     int     i;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -5918,7 +5918,7 @@ int divVal(float val,Mesh *m)
     int     np=m->np;
     float   *data=m->data;
     int     i;
-    
+
     if(data==NULL)
     {
         printf("ERROR: there is no data\n");
@@ -5939,9 +5939,9 @@ void randverts(int nrv, Mesh *m)
     int     i,j;
     float   s0,s1;
     float3D v;
-                
+
     srand(time(NULL)+getpid());
-    
+
     printf("3 meshgeometry randverts\n");
     printf("%i\n",nrv);
     // generate random vertices
@@ -5952,7 +5952,7 @@ void randverts(int nrv, Mesh *m)
         // pick a random point within the triangle
         s0=rand()/(float)RAND_MAX;
         s1=rand()/(float)RAND_MAX;
-        
+
         // only values such that s0+s1<=0 are in the triangle, if
         // that is not the case, reflect the point on the s1=1-s0 axis
         if(s0+s1>1)
@@ -5979,7 +5979,7 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     reference mesh) should have been previously made to correspond.
     */
     Mesh    m1; // spherical version of mesh m
-    Mesh    rm; // spherical version of the target mesh 
+    Mesh    rm; // spherical version of the target mesh
     int     nt;
     int3D   *t; // original mesh topology
     int     np_rm;
@@ -5994,21 +5994,21 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     int     non_mapped=0;
     int case_deg,case_parl,case_disj;
     case_deg=case_parl=case_disj=0;
-    
+
     loadMesh(path_m1,&m1,0);    // load spherical version of the original mesh
     loadMesh(path_rm,&rm,0);    // load spherical target mesh
-    
+
     // Check that m and m1 have the same number of vertices
     if(m->np!=m1.np)
     {
         printf("ERROR: m1 does not have the same number of vertices as m\n");
         return 1;
     }
-    
+
     // Centre spherical meshes m1 and rm
     centre(&m1);
     centre(&rm);
-    
+
     // Check whether the meshes are properly oriented
     n=normal3D(0,&m1);
     flipTest=dot3D(m1.p[m1.t[0].a],n);
@@ -6024,7 +6024,7 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
         printf("ERROR: rm is mis-oriented. Path: %s\n",path_rm);
         return 1;
     }
-    
+
     // Points and triangles of the original mesh
     p=m->p;
     nt=m->nt;
@@ -6036,7 +6036,7 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
     // Points of the target spherical mesh (reference)
     np_rm=rm.np;
     p_rm=rm.p;
-    
+
     // Interpolate coordinates on reference mesh
     tmp=(float3D*)calloc(np_rm,sizeof(float3D));    // the new points are stored in tmp
     for(i=0;i<np_rm;i++)
@@ -6048,7 +6048,7 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
             printf("%i%% ",i*100/np_rm);
             fflush(stdout);
         }
-        
+
         // look for a triangle in the spherical original mesh containing
         // point i of the target mesh
         for(j=0;j<nt;j++)
@@ -6063,12 +6063,12 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
                 tmp[i]=add3D(tmp[i],sca3D(p[t[j].c],c1));
                 break;
             }
-            
+
             if(result==-1) case_deg++;
             if(result==0) case_disj++;
             if(result==2) case_parl++;
         }
-        
+
         // if j==nt no triangle was found in the spherical original mesh that contained
         // point i. As an approximation, pick the closest point in the spherical original
         // mesh.
@@ -6092,7 +6092,7 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
         printf("\n");
     if(non_mapped) printf("\nWARNING: %i vertices could not be resampled and were mapped to the closest vertex. Reference mesh: %s\n",non_mapped,path_rm);
     if(verbose) printf("degenerate: %i\ndisjoint: %i\nparallel: %i\n",case_deg,case_disj,case_parl);
-    
+
     // Free data in original mesh (m), i.e., vertices, triangles, etc.
     free(m->p);
     free(m->t);
@@ -6100,20 +6100,20 @@ int resample(char *path_m1, char *path_rm, Mesh *m)
         free(m->data);
     if(m->NT)
         free(m->NT);
-    
+
     // Free spherical version of the actual mesh (m1)
     free(m1.p);
     free(m1.t);
-    
+
     // Reconfigure original mesh with resampled data
     m->p=tmp;
     m->t=rm.t;
     m->np=np_rm;
     m->nt=rm.nt;
-    
+
     if(verbose)
         printf("resampled np: %i, nt: %i\n",m->np,m->nt);
-    
+
     return 0;
 }
 
@@ -6144,17 +6144,17 @@ void sortTriangles(Mesh *m)
     int3D   *t=m->t,*t2;
     float3D   *x;
     int     i;
-    
+
     x=(float3D*)calloc(nt,sizeof(float3D));
     for(i=0;i<nt;i++)
     {
         x[i].x=(p[t[i].a].x+p[t[i].b].x+p[t[i].c].x)/3.0;
         x[i].y=i;
     }
-    
+
     // sort vertices per cos(angle)
     qsort(x,nt,sizeof(float3D),sortTrianglesFunction);
-    
+
     t2=(int3D*)calloc(nt,sizeof(int3D));
 
     // redistribute uniformly the triangles along the x axis
@@ -6191,7 +6191,7 @@ void uniform(Mesh *m)
     int     niter=2000,maxiter;
     int     i,j;
     float   x,s,ss,std,maxstd,r1,r2,n;
-    
+
     mi=ma=p[0];
     for(i=0;i<np;i++)
     {
@@ -6203,7 +6203,7 @@ void uniform(Mesh *m)
         ma.z=(ma.z<p[i].z)?p[i].z:ma.z;
     }
     c=(float3D){(mi.x+ma.x)/2.0,(mi.y+ma.y)/2.0,(mi.z+ma.z)/2.0};
-    
+
     srand(0);
     for(j=0;j<niter;j++)
     {
@@ -6230,7 +6230,7 @@ void uniform(Mesh *m)
         {
             maxstd=std;
             maxiter=j;
-        }   
+        }
     }
 
     srand(0);
@@ -6254,7 +6254,7 @@ void uniform(Mesh *m)
         ss+=x*x;
     }
     printf("angle mean=%g, angle s.d.=%g\n",s/(float)np,std);
-    
+
     // sort vertices per cos(angle)
     qsort(a,np,sizeof(float3D),sortVerticesFunction);
 
@@ -6397,18 +6397,18 @@ void printHelp(void)
 int main(int argc, char *argv[])
 {
     checkEndianness();
-    
+
     int    i;
     int    iformat=0;
     int    oformat=0;
-    
+
     mesh.p=NULL;
     mesh.t=NULL;
     mesh.data=NULL;
     mesh.selection=NULL;
     mesh.ddim=1;
     mesh.NT=NULL;
-    
+
     i=1;
     while(i<argc)
     {
@@ -6601,7 +6601,7 @@ int main(int argc, char *argv[])
         {
             int     j,N;
             float   l;
-            
+
             l=atof(argv[++i]);
             N=atoi(argv[++i]);
             for(j=0;j<N;j++)
@@ -6620,7 +6620,7 @@ int main(int argc, char *argv[])
         {
             int     j,N;
             float   l;
-            
+
             l=atof(argv[++i]);
             N=atoi(argv[++i]);
             for(j=0;j<N;j++)
@@ -6631,7 +6631,7 @@ int main(int argc, char *argv[])
         {
             int     j,N;
             float   l;
-            
+
             l=atof(argv[++i]);
             N=atoi(argv[++i]);
             for(j=0;j<N;j++)
@@ -6649,7 +6649,7 @@ int main(int argc, char *argv[])
         {
             int     N;
             float   lambda,mu;
-            
+
             lambda=atof(argv[++i]);
             mu=atof(argv[++i]);
             N=atoi(argv[++i]);
@@ -6660,7 +6660,7 @@ int main(int argc, char *argv[])
         {
             int     N;
             float   l;
-            
+
             l=atof(argv[++i]);
             N=atoi(argv[++i]);
             smoothData(&mesh,l,N);
@@ -6785,7 +6785,7 @@ int main(int argc, char *argv[])
         {
             int     j,N;
             float   l;
-            
+
             l=atof(argv[++i]);
             N=atoi(argv[++i]);
             for(j=0;j<N;j++)
@@ -6910,7 +6910,7 @@ int main(int argc, char *argv[])
         if(strcmp(argv[i],"-v")==0)    // turn on verbose mode
         {
             verbose+=1;
-        
+
             // print some information
             printf("%s\n",version);
             printf("CPU: %s\n",(endianness==kMOTOROLA)?"Motorola":"Intel");
@@ -6922,7 +6922,7 @@ int main(int argc, char *argv[])
         }
         i++;
     }
-    
+
     freeMesh(&mesh);
 
     if(verbose)
