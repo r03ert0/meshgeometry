@@ -6443,8 +6443,6 @@ void printHelp(void)
 int main(int argc, char *argv[])
 {
     checkEndianness();
-    if(verbose)
-        checkVersion(argv[0]);
 
     int    i;
     int    iformat=0;
@@ -6967,6 +6965,7 @@ int main(int argc, char *argv[])
             verbose+=1;
 
             // print some information
+            checkVersion(argv[0]);
             printf("%s\n",version);
             printf("CPU: %s\n",(endianness==kMOTOROLA)?"Motorola":"Intel");
         }
