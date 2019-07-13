@@ -2285,6 +2285,7 @@ int freeMesh(Mesh *m)
         free(m->selection);
     if(m->NT)
         free(m->NT);
+
     return 0;
 }
 int loadMesh(char *path, Mesh *m,int iformat)
@@ -2402,6 +2403,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
     m1->nt=m0->nt+amesh.nt;
     m1->p=(float3D*)calloc(m0->np+amesh.np,sizeof(float3D));
     m1->t=(int3D*)calloc(m0->nt+amesh.nt,sizeof(int3D));
+    m1->selection = (char*)calloc(m0->nt+amesh.nt,sizeof(char));
 
     // add points
     for(i=0;i<m0->np;i++)
@@ -2424,6 +2426,7 @@ int addMesh(char *path, Mesh *m0,int iformat)
     m0->nt=m1->nt;
     m0->p=m1->p;
     m0->t=m1->t;
+    m0->selection=m1->selection;
 
     return 0;
 }
@@ -3319,7 +3322,7 @@ void depth(float *C, Mesh *m)
     for(i=0;i<np;i++)
         C[i]=C[i]/max;
 }
-int drawSurface(Mesh *m,char *cmap,char *tiff_path)
+int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
 {
     int		i;
     char	*addr;      // memory for tiff image
@@ -3328,7 +3331,6 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path)
     float	zoom=1/4.0;
     float3D	a,b,c;
     float3D back={0xff,0xff,0xff};  // background colour
-    int     toonFlag=0;
     int     np=m->np;
     int     nt=m->nt;
     int3D   *t=m->t;
@@ -3683,19 +3685,19 @@ int fixNonmanifold_verts(Mesh *mesh)
         }
         free(e);
 
-        if(ne[i].n==0)
+        if(ne[i].n==0 && verbose)
             printf("WARNING, %i is isolated: remove it\n",i);
         else
-        if(ne[i].n==1)
+        if(ne[i].n==1 && verbose)
             printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
         else
-        if(loop==0)
+        if(loop==0 && verbose)
             printf("\nWARNING, %i is in a degenerate region: examine more in detail\n",i);
         else
         if(e_length>1)
         {
-            printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
-
+            if(verbose)
+                printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
             p1=(float3D*)calloc(np+e_length-1,sizeof(float3D));
             for(l=0;l<np;l++)
                 p1[l]=p[l];     // copy the original vertices
@@ -3707,10 +3709,12 @@ int fixNonmanifold_verts(Mesh *mesh)
             {
                 if(i1[k]==j)
                 {
-                    printf(" | ");
+                    if(verbose)
+                        printf(" | ");
                     k++;
                 }
-                printf("%i ",t1[j]);
+                if(verbose)
+                    printf("%i ",t1[j]);
                 if(k>1)
                 {
                     if(t[t1[j]].a==i)   t[t1[j]].a=np+(k-2);
@@ -3718,7 +3722,8 @@ int fixNonmanifold_verts(Mesh *mesh)
                     if(t[t1[j]].c==i)   t[t1[j]].c=np+(k-2);
                 }
             }
-            printf("\n");
+            if(verbose)
+                printf("\n");
             free(mesh->p);
             mesh->p=p1;
             mesh->np=np+e_length-1;
@@ -4653,12 +4658,13 @@ int nonmanifold_verts(Mesh *mesh)
         free(t1);
         free(i1);
 
-        if(ne[i].n==0)      printf("WARNING, %i is isolated: remove it\n",i);
-        else if(ne[i].n==1) printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
-        else if(loop==0)    printf("WARNING, %i is in a degenerate region: examine more in detail\n",i);
+        if(ne[i].n==0 && verbose)      printf("WARNING, %i is isolated: remove it\n",i);
+        else if(ne[i].n==1 && verbose) printf("WARNING, %i is dangling: remove the the vertex and its triangle\n",i);
+        else if(loop==0 && verbose)    printf("WARNING, %i is in a degenerate region: examine more in detail\n",i);
         else if(e_length>1)
         {
-            printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
+            if(verbose)
+                printf("WARNING, %i has %i loops: split the vertex into %i vertices and remesh\n",i,e_length,e_length);
             sum++;
         }
         else
@@ -6376,6 +6382,7 @@ void printHelp(void)
 \n\
    General\n\
     -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2 or level4\n\
+    -drawSurfaceToon colourmap path                  draw surface using toon rendering in tiff format, colourmap is grey, rainbow, level2 or level4\n\
     -h                                               Help\n\
     -v                                               Verbose mode\n\
 \n\
@@ -6811,8 +6818,8 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-translate")==0)    // translate x, y, z
         {
-        translate(atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]),&mesh);
-        i+=3;
+            translate(atof(argv[i+1]),atof(argv[i+2]),atof(argv[i+3]),&mesh);
+            i+=3;
         }
         else
         if(strcmp(argv[i],"-centre")==0)
@@ -6824,7 +6831,14 @@ int main(int argc, char *argv[])
         {
             char   *cmap=argv[++i];
             char   *tiff_path=argv[++i];
-            drawSurface(&mesh,cmap,tiff_path);
+            drawSurface(&mesh,cmap,tiff_path,0);
+        }
+        else
+        if(strcmp(argv[i],"-drawSurfaceToon")==0)
+        {
+            char   *cmap=argv[++i];
+            char   *tiff_path=argv[++i];
+            drawSurface(&mesh,cmap,tiff_path,1);
         }
         else
         if(strcmp(argv[i],"-mirror")==0)
