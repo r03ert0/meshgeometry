@@ -2093,9 +2093,13 @@ int VTK_save_mesh(char *path, Mesh *m)
     fprintf(f,"POINTS %i float\n",*np);
     for(i=0;i<*np;i++)
     {
+        fprintf(f,"%f %f %f\n", p[i].x,p[i].y,p[i].z);
+        /*
+        // this version writes more than one 3d coordinate per line
         fprintf(f,"%f %f %f ", p[i].x,p[i].y,p[i].z);
         if(i%3==0)
             fprintf(f,"\n");
+        */
     }
     fprintf(f,"\n");
 
@@ -6279,6 +6283,46 @@ void uniform(Mesh *m)
     }
     free(a);
 }
+
+int systemOutput(char *cmd, char *out)
+{
+    FILE *fp;
+    fp=popen(cmd, "r");
+    if (fp==NULL)
+        return 0;
+    else
+        fgets(out,256,fp);
+    pclose(fp);
+    return 1;
+}
+void checkVersion(void)
+{
+    char v_local[128];
+    char v_remote[128];
+
+    if(!systemOutput("git log -1 --format=%cd", v_local))
+    {
+        printf("ERROR: Failed to get local version\n");
+        return;
+    }
+
+    if(!systemOutput("git log -1 --format=%cd origin/master", v_remote))
+    {
+        printf("ERROR: Failed to get remote version\n");
+        return;
+    }
+
+    if(strcmp(v_local, v_remote) == 0)
+        printf("Code is up to date.\n");
+    else
+    {
+        printf("WARNING: Local and remote versions are not the same\n");
+        printf("Local: %s\n", v_local);
+        printf("Remote: %s\n", v_remote);
+    }
+    
+    return;
+}
 void printHelp(void)
 {
      printf("\
@@ -6404,6 +6448,7 @@ void printHelp(void)
 int main(int argc, char *argv[])
 {
     checkEndianness();
+    checkVersion();
 
     int    i;
     int    iformat=0;
