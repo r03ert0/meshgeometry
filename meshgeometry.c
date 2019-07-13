@@ -6443,7 +6443,8 @@ void printHelp(void)
 int main(int argc, char *argv[])
 {
     checkEndianness();
-    checkVersion(argv[0]);
+    if(verbose)
+        checkVersion(argv[0]);
 
     int    i;
     int    iformat=0;
