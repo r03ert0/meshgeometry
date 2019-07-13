@@ -6317,8 +6317,8 @@ void checkVersion(void)
     else
     {
         printf("WARNING: Local and remote versions are not the same\n");
-        printf("Local: %s\n", v_local);
-        printf("Remote: %s\n", v_remote);
+        printf("Local: %s", v_local);
+        printf("Remote: %s", v_remote);
     }
     
     return;
