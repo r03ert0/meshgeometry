@@ -197,6 +197,49 @@ void checkEndianness(void)
     else
         endianness=kINTEL;
 }
+int systemOutput(char *cmd, char *out)
+{
+    FILE *fp;
+    fp=popen(cmd, "r");
+    if (fp==NULL)
+        return 0;
+    else
+        fgets(out,256,fp);
+    pclose(fp);
+    return 1;
+}
+void checkVersion(const char *home)
+{
+    char cmd[1024];
+    char v_local[128];
+    char v_remote[128];
+
+    sprintf(cmd, "git --git-dir $(dirname %s)/.git log -1 --format=%%cd", home);
+    if(!systemOutput(cmd, v_local))
+    {
+        printf("ERROR: Failed to get local version\n");
+        return;
+    }
+
+    sprintf(cmd, "git --git-dir $(dirname %s)/.git log -1 --format=%%cd origin/master", home);
+    if(!systemOutput(cmd, v_remote))
+    {
+        printf("ERROR: Failed to get remote version\n");
+        return;
+    }
+
+    printf("Last update: %s", v_local);
+    if(strcmp(v_local, v_remote) == 0)
+        printf("Code is up to date.\n");
+    else
+    {
+        printf("WARNING: Local and remote versions are not the same\n");
+        printf("Local: %s", v_local);
+        printf("Remote: %s", v_remote);
+    }
+    
+    return;
+}
 void swapint(int *n)
 {
     char    *by=(char*)n;
@@ -6275,49 +6318,6 @@ void uniform(Mesh *m)
     free(a);
 }
 
-int systemOutput(char *cmd, char *out)
-{
-    FILE *fp;
-    fp=popen(cmd, "r");
-    if (fp==NULL)
-        return 0;
-    else
-        fgets(out,256,fp);
-    pclose(fp);
-    return 1;
-}
-void checkVersion(char *home)
-{
-    char cmd[1024];
-    char v_local[128];
-    char v_remote[128];
-
-    sprintf(cmd, "git --git-dir $(dirname %s)/.git log -1 --format=%%cd", home);
-    if(!systemOutput(cmd, v_local))
-    {
-        printf("ERROR: Failed to get local version\n");
-        return;
-    }
-
-    sprintf(cmd, "git --git-dir $(dirname %s)/.git log -1 --format=%%cd origin/master", home);
-    if(!systemOutput(cmd, v_remote))
-    {
-        printf("ERROR: Failed to get remote version\n");
-        return;
-    }
-
-    printf("meshgeometry, version from %s", v_local);
-    if(strcmp(v_local, v_remote) == 0)
-        printf("Code is up to date.\n");
-    else
-    {
-        printf("WARNING: Local and remote versions are not the same\n");
-        printf("Local: %s", v_local);
-        printf("Remote: %s", v_remote);
-    }
-    
-    return;
-}
 void printHelp(void)
 {
      printf("\
@@ -6965,8 +6965,8 @@ int main(int argc, char *argv[])
             verbose+=1;
 
             // print some information
-            checkVersion(argv[0]);
             printf("%s\n",version);
+            checkVersion(argv[0]);
             printf("CPU: %s\n",(endianness==kMOTOROLA)?"Motorola":"Intel");
         }
         else
