@@ -7,23 +7,17 @@
 //char version[]="meshgeometry, version 7, roberto toro, 17 Decembre 2014"; // vtk support
 //char version[]="meshgeometry, version 8, roberto toro, 26 Decembre 2015";
 //char version[]="meshgeometry, version 9, roberto toro, 10 June 2017"; // add gii reader
-char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add asc reader/writer
+//char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add asc reader/writer
+char version[]="meshgeometry, version 11, roberto toro, 10 December 2019"; // added more colourmaps
 
 /*
     To use:
 
-    ./meshgeometry_mac -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.inflated -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.curv -drawSurface bert.tif lat
+    ./meshgeometry_mac -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.inflated -i /Applications/_Neuro/freesurfer510/subjects/bert/surf/lh.curv -drawSurface hot bert.tif lat
 
     To compile:
 
-    On Mac OS X:
-    gcc -Wall meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
-
-    On Unix:
-    gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut -lm -lz
-
-    On Windows:
-    gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
+    source compile.sh
 */
 
 #include <stdio.h>
@@ -33,6 +27,8 @@ char version[]="meshgeometry, version 10, roberto toro, 7 November 2017"; // add
 #include <time.h>
 #include <unistd.h>
 #include <zlib.h>
+
+#include "colormap.h"
 
 // OpenGL libraries
 #ifdef __APPLE__
@@ -1260,6 +1256,93 @@ int Text_save_mesh(char *path, Mesh *m)
 
     return 0;
 }
+int Text_load_data(char *path, Mesh *m)
+{
+    if(verbose)
+        printf("* Text_load_data\n");
+
+    int     np=0;
+    int     ddim=0;
+    int     ver=0;
+    float   *data;
+    FILE    *f;
+    int     i,j;
+    char    str[512];
+
+    f=fopen(path,"r");
+    if(f==NULL)
+        return 1;
+
+    // READ HEADER
+    fgets(str,511,f);
+    sscanf(str,"%i %i %i\n",&np,&ddim,&ver);
+
+    // check file length
+    if(np!=m->np)
+    {
+        printf("ERROR: text data dimensions do not match with mesh [%i!=%i]\n",np,m->np);
+        return 1;
+    }
+
+    // if no data dimension specified, used default
+    if(!ddim)
+        ddim=1;
+
+    m->data=(float*)calloc(np*ddim,sizeof(float));
+    data=m->data;
+
+    // if verbose, print data file information
+    if(verbose)
+        printf("Reading %i rows, %i columns\n",np,ddim);
+    
+    // READ DATA
+    for(i=0;i<np;i++)
+    {
+        for(j=0;j<ddim;j++)
+            if(j<ddim-1)
+                fscanf(f,"%f ",&(data[ddim*i+j]));
+            else
+                fscanf(f,"%f\n",&(data[ddim*i+j]));
+    }
+
+    fclose(f);
+
+    return 0;
+}
+int Text_save_data(char *path, Mesh *m)
+{
+    if(verbose)
+        printf("* Text_save_data\n");
+
+    int     *np=&(m->np);
+    float   *data=m->data;
+    FILE    *f;
+    int     i,j;
+
+    f=fopen(path,"w");
+    if(f==NULL)
+    {
+        printf("ERROR: Cannot open file\n");
+        return 1;
+    }
+
+    // WRITE HEADER
+    fprintf(f,"%i %i 3\n",*np,m->ddim);
+
+    // WRITE DATA
+    for(i=0;i<*np;i++)
+    {
+        for(j=0;j<m->ddim;j++)
+            if(j<m->ddim-1)
+                fprintf(f,"%f ",data[m->ddim*i+j]);
+            else
+                fprintf(f,"%f\n",data[m->ddim*i+j]);
+    }
+
+    fclose(f);
+
+    return 0;
+}
 int Asc_load(char *path, Mesh *m)
 {
     int     *np=&(m->np);
@@ -1322,40 +1405,6 @@ int Asc_save_mesh(char *path, Mesh *m)
     // WRITE TRIANGLES
     for(i=0;i<*nt;i++)
         fprintf(f,"%i %i %i 0\n",t[i].a,t[i].b,t[i].c);
-
-    fclose(f);
-
-    return 0;
-}
-int Text_save_data(char *path, Mesh *m)
-{
-    if(verbose)
-        printf("* Text_save_data\n");
-
-    int     *np=&(m->np);
-    float   *data=m->data;
-    FILE    *f;
-    int     i,j;
-
-    f=fopen(path,"w");
-    if(f==NULL)
-    {
-        printf("ERROR: Cannot open file\n");
-        return 1;
-    }
-
-    // WRITE HEADER
-    fprintf(f,"%i %i 3\n",*np,m->ddim);
-
-    // WRITE DATA
-    for(i=0;i<*np;i++)
-    {
-        for(j=0;j<m->ddim;j++)
-            if(j<m->ddim-1)
-                fprintf(f,"%f ",data[m->ddim*i+j]);
-            else
-                fprintf(f,"%f\n",data[m->ddim*i+j]);
-    }
 
     fclose(f);
 
@@ -2356,6 +2405,9 @@ int loadMesh(char *path, Mesh *m,int iformat)
             break;
         case kText:
             err=Text_load(path,m);
+            break;
+        case kTextData:
+            err=Text_load_data(path,m);
             break;
         case kVRMLMesh:
             err=VRML_load_mesh(path,m);
@@ -3374,11 +3426,9 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
     int3D   *t=m->t;
     float3D *p=m->p;
     float   *data=m->data;
-    float   R,G,B;
+    float   rgb[3];
     float3D *color;
-    int     argc = 1;
-    char    *argv[1] = {(char*)"Something"};
-    float   min,max,val;
+    float   min,max;
 
     // configure data
     min=minData(m);
@@ -3391,23 +3441,55 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
     color=(float3D*)calloc(np,sizeof(float3D));
     for(i=0;i<np;i++)
     {
-        val=(data[i]-min)/(max-min);
-        if(strcmp(cmap,"rainbow")==0)
-            rainbow(val,&R,&G,&B);
+        float val=(data[i]-min)/(max-min);
+        if(strcmp(cmap,"heat")==0)
+            get_heat_color(val, rgb);
         else
-        if(strcmp(cmap,"grey")==0 || strcmp(cmap,"level2")==0 || strcmp(cmap,"level4")==0)
-            greyscale(val,&R,&G,&B);
+        if(strcmp(cmap,"jet")==0)
+            get_jet_color(val, rgb);
+        else
+        if(strcmp(cmap,"hot")==0)
+            get_hot_color(val, rgb);
+        else
+        if(strcmp(cmap,"grey")==0)
+            get_gray_color(val, rgb);
+        else
+        if(strcmp(cmap,"magma")==0)
+            get_magma_color(val, rgb);
+        else
+        if(strcmp(cmap,"inferno")==0)
+            get_inferno_color(val, rgb);
+        else
+        if(strcmp(cmap,"plasma")==0)
+            get_plasma_color(val, rgb);
+        else
+        if(strcmp(cmap,"viridis")==0)
+            get_viridis_color(val, rgb);
+        else
+        if(strcmp(cmap,"cividis")==0)
+            get_cividis_color(val, rgb);
+        else
+        if(strcmp(cmap,"github")==0)
+            get_github_color(val, rgb);
+        else
+        if(strcmp(cmap,"rainbow")==0)
+            rainbow(val,&(rgb[0]),&(rgb[1]),&(rgb[2]));
+        else
+        if(strcmp(cmap,"level2")==0 || strcmp(cmap,"level4")==0)
+            greyscale(val,&(rgb[0]),&(rgb[1]),&(rgb[2]));
         else
         {
             printf("ERROR: Unknown colour map %s\n",cmap);
             return 0;
         }
-        color[i]=(float3D){R,G,B};
+        color[i]=(float3D){rgb[0],rgb[1],rgb[2]};
     }
 
     // draw
     if(g_gluInitFlag==0)
     {
+        int     argc = 1;
+        char    *argv[1] = {(char*)"Something"};
         glutInit(&argc, argv);
         glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
         g_gluInitFlag=1;
@@ -3419,50 +3501,50 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
     glClearColor(back.x,back.y,back.z,1);
 
     // init projection
-        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
-        glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT+GL_STENCIL_BUFFER_BIT);
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        glOrtho(zoom*width/2,-zoom*width/2,-zoom*height/2,zoom*height/2, -100000.0, 100000.0);
+    glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT+GL_STENCIL_BUFFER_BIT);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(zoom*width/2,-zoom*width/2,-zoom*height/2,zoom*height/2, -100000.0, 100000.0);
 
     // prepare drawing
-        glMatrixMode (GL_MODELVIEW);
-        glLoadIdentity();
-        gluLookAt (0,0,-10, 0,0,0, 0,1,0); // eye,center,updir
+    glMatrixMode (GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt (0,0,-10, 0,0,0, 0,1,0); // eye,center,updir
 
     // draw
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glVertexPointer(3,GL_FLOAT,0,(GLfloat*)p);
-        glEnableClientState(GL_COLOR_ARRAY);
-        glColorPointer(3,GL_FLOAT,0,(GLfloat*)color);
-        glDrawElements(GL_TRIANGLES,nt*3,GL_UNSIGNED_INT,(GLuint*)t);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(3,GL_FLOAT,0,(GLfloat*)p);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glColorPointer(3,GL_FLOAT,0,(GLfloat*)color);
+    glDrawElements(GL_TRIANGLES,nt*3,GL_UNSIGNED_INT,(GLuint*)t);
 
     // toon shading
-        if(toonFlag)
+    if(toonFlag)
+    {
+        glEnable( GL_CULL_FACE );
+        glPolygonMode( GL_BACK, GL_FILL );
+        glCullFace( GL_FRONT );
+
+        glPolygonMode(GL_FRONT, GL_LINE);
+        glLineWidth(3.0);
+        glCullFace(GL_BACK);
+        glDepthFunc(GL_LESS);
+        glColor3f(0,0,0);
+        glBegin(GL_TRIANGLES);
+        for(i=0;i<nt;i++)
         {
-            glEnable( GL_CULL_FACE );
-            glPolygonMode( GL_BACK, GL_FILL );
-            glCullFace( GL_FRONT );
+            a=p[t[i].a];
+            b=p[t[i].b];
+            c=p[t[i].c];
 
-            glPolygonMode(GL_FRONT, GL_LINE);
-            glLineWidth(3.0);
-            glCullFace(GL_BACK);
-            glDepthFunc(GL_LESS);
-            glColor3f(0,0,0);
-            glBegin(GL_TRIANGLES);
-            for(i=0;i<nt;i++)
-            {
-                a=p[t[i].a];
-                b=p[t[i].b];
-                c=p[t[i].c];
-
-                glVertex3fv((float*)&a);
-                glVertex3fv((float*)&b);
-                glVertex3fv((float*)&c);
-            }
-            glEnd();
-            glDisable( GL_CULL_FACE );
+            glVertex3fv((float*)&a);
+            glVertex3fv((float*)&b);
+            glVertex3fv((float*)&c);
         }
+        glEnd();
+        glDisable( GL_CULL_FACE );
+    }
 
     // Write image in TIFF format
     addr=(char*)calloc(width*height,sizeof(char)*4);
@@ -6420,8 +6502,9 @@ void printHelp(void)
     -selectFlipSphere                                Select flipped triangles, for spherical meshes\n\
 \n\
    General\n\
-    -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2 or level4\n\
-    -drawSurfaceToon colourmap path                  draw surface using toon rendering in tiff format, colourmap is grey, rainbow, level2 or level4\n\
+    -drawSurface colourmap path                      draw surface in tiff format, colourmap is grey, rainbow, level2, level4,\n\
+                                                     cividis, github, grey, heat, hot, inferno, jet, magma, plasma or viridis.\n\
+    -drawSurfaceToon colourmap path                  draw surface using toon rendering in tiff format, colourmap as for drawSurface.\n\
     -h                                               Help\n\
     -v                                               Verbose mode\n\
 \n\
