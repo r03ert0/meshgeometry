@@ -6543,7 +6543,6 @@ int main(int argc, char *argv[])
         {
             char    str[256];
             sprintf(str," .%s",argv[++i]);
-            printf("iformat: %s\n",str);
             iformat=getformatindex(str);
         }
         else
