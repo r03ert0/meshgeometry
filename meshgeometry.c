@@ -4562,7 +4562,6 @@ float maxData(Mesh *m)
     max=data[0];
     for(i=1;i<np;i++)
         max=(data[i]>max)?(data[i]):max;
-    printf("maxData: %f\n",max);
     return max;
 }
 float meanData(Mesh *m)
@@ -4601,7 +4600,6 @@ float minData(Mesh *m)
     min=data[0];
     for(i=1;i<np;i++)
         min=(data[i]<min)?(data[i]):min;
-    printf("minData: %f\n",min);
     return min;
 }
 float mirror(Mesh *m, char *coord)
@@ -6580,7 +6578,8 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-max")==0)
         {
-            maxData(&mesh);
+            float val = maxData(&mesh);
+            printf("maxData: %f\n", val);
         }
         else
         if(strcmp(argv[i],"-mean")==0)
@@ -6590,7 +6589,8 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-min")==0)
         {
-            minData(&mesh);
+            float val = minData(&mesh);
+            printf("minData: %f\n", val);
         }
         else
         if(strcmp(argv[i],"-odata")==0)
