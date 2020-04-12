@@ -3417,6 +3417,8 @@ void depth(float *C, Mesh *m)
 }
 int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
 {
+    if(verbose)
+        puts("drawSurface");
     int		i;
     char	*addr;      // memory for tiff image
     int     width=512;  // tiff width
@@ -3456,6 +3458,9 @@ int drawSurface(Mesh *m,char *cmap,char *tiff_path, int toonFlag)
         else
         if(strcmp(cmap,"grey")==0)
             get_gray_color(val, rgb);
+        else        
+        if(strcmp(cmap,"invertedgrey")==0)
+            get_gray_color(1-val, rgb);
         else
         if(strcmp(cmap,"magma")==0)
             get_magma_color(val, rgb);
