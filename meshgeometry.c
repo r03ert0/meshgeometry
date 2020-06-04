@@ -6567,6 +6567,7 @@ void printHelp(void)
                                                        degrees and fix them\n\
     -fixFlip                                         Detect flipped triangles and fix them\n\
     -fixFlipSphere                                   Detect flipped triangles and fix them, for spheres\n\
+    -fixNonmanifold                                  Fix non manifold vertices\n\
     -fixSmall                                        Detect triangles with an angle >160\n\
     -invert axis                                     Invert the sign of the mesh vertices along the specified axis\n\
     -laplaceSmooth lambda num_iter                   Laplace smoothing\n\
