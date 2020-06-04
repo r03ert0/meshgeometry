@@ -920,10 +920,7 @@ int FreeSurfer_save_mesh(char *path, Mesh *m)
     fputc((char)c,f);
 
     // write date and info (EMPTY)
-    date[5]=(char)10;
-    info[5]=(char)10;
-    fwrite(date,1,6,f);
-    fwrite(info,1,6,f);
+	fprintf(f, "%s %s\n\n", date, info);
 
     // write number of vertices and triangles
     NP=*np;
