@@ -4239,7 +4239,7 @@ int removeIsolatedVerts(Mesh *m)
 
     return 0;
 }
-int removeVerts(Mesh *m)
+int removeVerts(Mesh *m, int optional_path, char *path)
 {
     if(verbose)
         puts("* removeVerts");
@@ -4304,6 +4304,15 @@ int removeVerts(Mesh *m)
     }
     np0=*np;
     *np=j;  // j is the new number of vertices
+
+    if(optional_path==1)
+    {
+        FILE *f=fopen(path,"w");
+        int i;
+        for(i=0;i<np0;i++)
+            fprintf(f,"%i\n",ip[i]);
+        fclose(f);
+    }
 
     // re-index triangles
     for(i=0;i<*nt;i++)
@@ -6581,7 +6590,8 @@ void printHelp(void)
     -relax filename                                  Relax current mesh to mesh at filename\n\
                                                         (both meshes have the same topology)\n\
     -removeIsolatedVerts                             Remove isolated vertices\n\
-    -removeVerts                                     Remove vertices with negative vertex data values\n\
+    -removeVerts [optional: lut_path]                Remove vertices with negative vertex data values. Optional: give the path to\n\
+                                                        a text file for writing the correspondance between old and new vertices.\n\
     -repulse num_iter                                Repulse vertices with a force f=1/dist for num_iter iterations\n\
     -resample smooth_mesh reference_mesh             Resample the mesh to match the vertices\n\
                                                        and the topology of the argument mesh\n\
@@ -6852,7 +6862,14 @@ int main(int argc, char *argv[])
         else
         if(strcmp(argv[i],"-removeVerts")==0)
         {
-            removeVerts(&mesh);
+            char *path = argv[i+1];
+            int optional_path=0;
+            if(path[0]!='-')
+            {
+                optional_path=1;
+                i+=1;
+            }
+            removeVerts(&mesh,optional_path,path);
         }
         else
         if(strcmp(argv[i],"-laplaceSmooth")==0)
