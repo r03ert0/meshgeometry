@@ -3650,7 +3650,10 @@ int extrude(float d, Mesh *m)
         n[t[i].c]++;
     }
     for(i=0;i<*np;i++)
-        no[i]=sca3D(no[i],1/(float)n[i]);
+    {
+        if(n[i]>0)
+            no[i]=sca3D(no[i],1/(float)n[i]);
+    }
     free(n);
 
     // make new vertices, displace them d along the normal
