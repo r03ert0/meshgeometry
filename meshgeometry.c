@@ -145,14 +145,19 @@ float norm3Dsqr(float3D a)
 {
     return a.x*a.x+a.y*a.y+a.z*a.z;
 }
+
+/** Return the unitary normal vector of triangle i, or (0,0,0) if not defined */
 float3D normal3D(int i, Mesh *m)
 {
     float3D *p=m->p;
     int3D   *t=m->t;
-    float3D N;
+    float3D N, zero = {0, 0, 0};
+    float norm;
 
     N=cross3D(sub3D(p[t[i].b],p[t[i].a]),sub3D(p[t[i].c],p[t[i].a]));
-    return sca3D(N,1/norm3D(N));
+    norm = norm3D(N);
+
+    return (norm>0)?sca3D(N,1/norm3D(N)):zero;
 }
 
 float determinant(float3D a, float3D b, float3D c)
