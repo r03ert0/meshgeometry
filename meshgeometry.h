@@ -149,10 +149,13 @@ float3D normal3D(int i, Mesh *m)
 {
     float3D *p=m->p;
     int3D   *t=m->t;
-    float3D N;
+    float3D N, zero = {0, 0, 0};
+    float norm;
 
     N=cross3D(sub3D(p[t[i].b],p[t[i].a]),sub3D(p[t[i].c],p[t[i].a]));
-    return sca3D(N,1/norm3D(N));
+    norm = norm3D(N);
+
+    return (norm>0)?sca3D(N,1/norm3D(N)):zero;
 }
 
 float determinant(float3D a, float3D b, float3D c)
@@ -3650,7 +3653,10 @@ int extrude(float d, Mesh *m)
         n[t[i].c]++;
     }
     for(i=0;i<*np;i++)
-        no[i]=sca3D(no[i],1/(float)n[i]);
+    {
+        if(n[i]>0)
+            no[i]=sca3D(no[i],1/(float)n[i]);
+    }
     free(n);
 
     // make new vertices, displace them d along the normal
