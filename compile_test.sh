@@ -8,16 +8,8 @@ OS="$(uname -s)" || exit 1
 
 case "${OS}" in
 'Darwin')
-    echo "Compiling for Mac"
-    g++ -std=c++11 -Wall -lz -Wno-deprecated meshgeometry.c -o meshgeometry_mac -framework Carbon -framework OpenGL -framework GLUT
-    ;;
-'Linux')
-    echo "Compiling for Linux"
-    gcc -Wall  -Wno-unknown-pragmas meshgeometry.c -o meshgeometry_linux -lGL -lGLU -lglut -lm -lz
-    ;;
-'CYGWIN')
-    echo "Compiling for Cygwin"
-    gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
+    echo "Compiling tests for Mac"
+    g++ -std=c++11 -Wall -lz -Wno-deprecated meshgeometry_test.cpp -o meshgeometry_test_mac -framework Carbon -framework OpenGL -framework GLUT
     ;;
 *)
     echo "Unknown OS $OS, if it is some kind of unix, try:" 1>&2
