@@ -19,6 +19,10 @@ case "${OS}" in
     echo "Compiling for Cygwin"
     gcc -Wall meshgeometry.c -o meshgeometry_win.exe -lopengl32 -lglut32
     ;;
+MINGW* | MSYS*)
+    echo "Compiling for Mingw"
+    gcc -Wall  -Wno-unknown-pragmas meshgeometry.c -o meshgeometry_win -lopengl32 -lfreeglut -lglu32 -lm -lz
+    ;;
 *)
     echo "Unknown OS $OS, if it is some kind of unix, try:" 1>&2
     echo "  gcc -Wall meshgeometry.c -o meshgeometry_unix -lGL -lGLU -lglut -lm -lz" 1>&2

@@ -23,6 +23,7 @@ char version[]="meshgeometry, version 11, roberto toro, 10 December 2019"; // ad
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <math.h>
 #include <time.h>
 #include <unistd.h>
@@ -716,9 +717,9 @@ int FreeSurfer_load_mesh(char *path, Mesh *m)
         return 1;
 
     // read triangle/quad identifier: 3 bytes
-    a=((int)(u_int8_t)fgetc(f))<<16;
-    b=((int)(u_int8_t)fgetc(f))<<8;
-    c=(u_int8_t)fgetc(f);
+    a=((int)(uint8_t)fgetc(f))<<16;
+    b=((int)(uint8_t)fgetc(f))<<8;
+    c=(uint8_t)fgetc(f);
     id=a+b+c;
     if(id==16777214)    // triangle mesh
     {
@@ -763,9 +764,9 @@ int FreeSurfer_load_data(char *path, Mesh *m)
         return 1;
 
     // read identifier: 3 bytes
-    a=((int)(u_int8_t)fgetc(f))<<16;
-    b=((int)(u_int8_t)fgetc(f))<<8;
-    c=(u_int8_t)fgetc(f);
+    a=((int)(uint8_t)fgetc(f))<<16;
+    b=((int)(uint8_t)fgetc(f))<<8;
+    c=(uint8_t)fgetc(f);
     id=a+b+c;
     if(id==16777215)    // triangle mesh
     {
