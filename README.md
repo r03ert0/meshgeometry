@@ -4,6 +4,15 @@ meshgeometry
 Mesh geometry tools. Several commands can be chained together, with the same operation
 appearing many times in the same command line. They are processed sequentially.
 
+Compiling:
+  bash compile.sh
+
+In Linux, you may need to install the freeglut3 and libmesa libraries first:
+  apt-get update
+  apt install freeglut3-dev
+  apt install mesa-common-dev
+
+
 I/O commands         |Description
 ---------------------|----------------
 -iformat format_name |Force input format (needs to precede imesh)

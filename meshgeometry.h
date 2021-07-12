@@ -1075,7 +1075,9 @@ int BrainVisa_load_mesh(char *path, Mesh *m)
     fread(tmp,5,sizeof(char),f); tmp[5]=(char)0;
     if(strcmp(tmp,"binar")==0)
     {
-        for(i=0;i<4;i++) tmp[i]=fgetc(f); tmp[4]=(char)0;
+        for(i=0;i<4;i++)
+		tmp[i]=fgetc(f);
+	tmp[4]=(char)0;
         endian=-1;
         if(strcmp(tmp,"ABCD")==0)    endian=kMOTOROLA;
         if(strcmp(tmp,"DCBA")==0)    endian=kINTEL;
